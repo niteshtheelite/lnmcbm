@@ -23,11 +23,18 @@ const attendanceSchema = new mongoose.Schema(
           ref: "Student",
           required: true,
         },
-        status: { type: String, enum: ["Present", "Absent"], required: true },
+        isPresent: {
+          type: Boolean,
+          default: false,
+        },
       },
     ],
   },
   {
     timestamps: true,
   }
+);
+export const attendanceDeatails = mongoose.model(
+  "attendanceDeatails",
+  attendanceSchema
 );
