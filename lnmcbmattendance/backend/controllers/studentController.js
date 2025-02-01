@@ -1,13 +1,33 @@
-import { StudentDeatails } from "../models/studentSchema.js";
+import { Student } from "../models/studentSchema.js";
 
 const createStudent = async (req, res) => {
   try {
-    const newStudent = new StudentDeatails(req.body);
-    await newStudent.save();
-    res.status(201).json(newStudent);
+    // Extract student data from the request body
+    const { rollNumber, name, department, session, semester } = req.body;
+
+    // Create a new student instance
+    const newStudent = new Student({
+      rollNumber,
+      name,
+      department,
+      session,
+      semester,
+    });
+
+    // Save the student to the database
+    const savedStudent = await newStudent.save();
+
+    // Respond with the created student
+    res.status(201).json({
+      message: "Student created successfully",
+      student: savedStudent,
+    });
   } catch (error) {
-    console.error(err);
-    res.status(500).json({ message: "Error creating student", error: err });
+    console.error(error); // Log the error for debugging
+    res.status(500).json({
+      message: "Error creating student",
+      error: error.message,
+    });
   }
 };
 const getStudents = async (req, res) => {

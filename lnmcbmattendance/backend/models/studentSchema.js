@@ -2,16 +2,15 @@ import mongoose, { Schema } from "mongoose";
 
 const studentSchema = new Schema(
   {
+    rollNumber: { type: Number, required: true, unique: true },
     name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    dateOfBirth: { type: Date, required: true },
-    contactNumber: { type: String, required: true },
-    address: { type: String, required: true },
-    enrollmentDate: { type: Date, default: Date.now },
+    department: { type: String, required: true },
+    session: { type: Number, required: true },
+    semester: { type: String, required: true },
   },
   {
     timestamps: true,
   }
 );
 
-export const StudentDeatails = mongoose.model("StudentDeatails", studentSchema);
+export const Student = mongoose.model("Student", studentSchema);

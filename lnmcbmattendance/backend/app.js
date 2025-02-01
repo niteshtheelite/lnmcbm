@@ -1,19 +1,24 @@
-import express from "express"
-import cors from "cors"
-import cookieParser from "cookie-parser"
-import dotenv from "dotenv"
-import connectToDb from "./db/db.js"
+import express from "express";
+import cors from "cors";
+import cookieParser from "cookie-parser";
+import dotenv from "dotenv";
+import connectToDb from "./db/db.js";
+
+//route import
+import studentDetails from "./routes/studentRoute.js";
 
 dotenv.config();
-const app = express()
+const app = express();
 connectToDb();
 
 app.use(cors());
 app.use(cookieParser());
 app.use(express.json());
 
- app.get('/', (req, res) => {
-   res.send('Hello World');
- });
+app.use("/api/v1/student", studentDetails);
 
- export default app;
+app.get("/", (req, res) => {
+  res.send("Hello World");
+});
+
+export default app;

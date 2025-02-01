@@ -12,4 +12,4 @@ const courseSchema = new Schema(
   }
 );
 
-export const courseDetails = mongoose.model("courseDetails", courseSchema);
+export const Course = mongoose.model("Course", courseSchema);

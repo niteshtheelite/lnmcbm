@@ -1,8 +1,8 @@
-import { sectionDetails } from "../models/sectionSchema.js";
+import { Section } from "../models/sectionSchema.js";
 
 const createSection = async (req, res) => {
   try {
-    const newSection = new sectionDetails(req.body);
+    const newSection = new Section(req.body);
     await newSection.save();
     res.status(201).json(newSection);
   } catch (err) {
