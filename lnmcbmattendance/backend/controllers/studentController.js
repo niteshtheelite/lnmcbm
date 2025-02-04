@@ -32,7 +32,7 @@ const createStudent = async (req, res) => {
 };
 const getStudents = async (req, res) => {
   try {
-    const Students = await StudentDeatails.find();
+    const Students = await Student.find();
 
     res.status(200).json(Students);
   } catch (error) {
@@ -42,24 +42,32 @@ const getStudents = async (req, res) => {
 };
 const updateStudent = async (req, res) => {
   try {
-    const Students = await StudentDeatails.findByIdAndUpdate(
+    const { rollNumber, name, department, session, semester } = req.body;
+
+    const updatedStudent = await Student.findByIdAndUpdate(
       req.params.id,
-      req.body,
-      { new: true }
+      { rollNumber, name, department, session, semester },
+      {
+        new: true,
+        runValidators: true,
+      }
     );
-    if (Students) {
+
+    if (!updatedStudent) {
       return res.status(404).json({ message: "Student not found" });
     }
-    res.status(200).json(Students);
+
+    res.status(200).json(updatedStudent);
   } catch (error) {
-    console.error(err);
-    res.status(500).json({ message: "Error updating student", error: err });
+    console.error(error);
+    res
+      .status(500)
+      .json({ message: "Error updating student", error: error.message });
   }
 };
-
 const deleteStudent = async (req, res) => {
   try {
-    const Students = await StudentDeatails.findByIdAndDelete(req.params.id);
+    const Students = await Student.findByIdAndDelete(req.params.id);
     if (!Students) {
       return res.status(404).json({ message: "Student not found" });
     }
