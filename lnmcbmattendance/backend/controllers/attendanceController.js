@@ -1,38 +1,24 @@
 import { Student } from "../models/studentSchema.js";
 import { Attendance } from "../models/attendanceSchema.js";
 
-const submitAttendance = async (req, res) => {
-  const { course, department, session, semester, classDuration, students } =
-    req.body;
-
-  const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
-  const existing = await Attendance.findOne({
-    teacher: req.user.id,
-    course,
-    department,
-    session,
-    semester,
-    submittedAt: { $gte: twelveHoursAgo },
-  });
-
-  if (existing) throw new Error("Attendance already submitted for 12 hours");
-
-  const studentList = await Student.find({ department, session, semester });
-
-  const attendance = await Attendance.create({
-    teacher: req.user.id,
-    course,
-    department,
-    session,
-    semester,
-    classDuration,
-    students: studentList.map((student) => ({
+const createAttendance = async (req, res) => {
+  try {
+    const newAttendance = new Attendance(req.body);
+    const attendanceRecords = Student.map((student) => ({
       student: student._id,
-      present: students.includes(student._id.toString()),
-    })),
-  });
+      date,
+      duration,
+      present: student.present,
+    }));
 
-  res.status(201).json(attendance);
+    await newAttendance.insertMany(attendanceRecords);
+    res.json({ message: "Attendance Saved sucessfully" });
+  } catch (error) {
+    console.error(error);
+    res
+      .status(500)
+      .json({ message: "Error updating student", error: error.message });
+  }
 };
 
-export { submitAttendance };
+export { createAttendance };

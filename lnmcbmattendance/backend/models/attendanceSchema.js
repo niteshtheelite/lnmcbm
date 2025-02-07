@@ -1,13 +1,8 @@
 import mongoose, { Schema } from "mongoose";
 
 const attendanceSchema = new mongoose.Schema({
-  teacher: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-    required: true,
-  },
   date: { type: Date, default: Date.now },
-  course: { type: String, required: true },
+  // course: { type: mongoose.Schema.Types.ObjectId,ref: "Course", required: true },
   department: { type: String, required: true },
   session: { type: String, required: true },
   semester: { type: String, required: true },

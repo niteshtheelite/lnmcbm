@@ -13,7 +13,7 @@ const createSection = async (req, res) => {
 
 const getSections = async (req, res) => {
   try {
-    const sections = await sectionDetails.find();
+    const sections = await Section.find();
     res.status(200).json(sections);
   } catch (err) {
     console.error(err);
@@ -23,7 +23,7 @@ const getSections = async (req, res) => {
 
 const getSectionById = async (req, res) => {
   try {
-    const section = await sectionDetails.findById(req.params.id);
+    const section = await Section.findById(req.params.id);
     if (!section) {
       return res.status(404).json({ message: "Section not found" });
     }
@@ -36,11 +36,9 @@ const getSectionById = async (req, res) => {
 
 const updateSection = async (req, res) => {
   try {
-    const section = await sectionDetails.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true }
-    );
+    const section = await Section.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+    });
     if (!section) {
       return res.status(404).json({ message: "Section not found" });
     }
@@ -53,7 +51,7 @@ const updateSection = async (req, res) => {
 
 const deleteSection = async (req, res) => {
   try {
-    const section = await sectionDetails.findByIdAndDelete(req.params.id);
+    const section = await Section.findByIdAndDelete(req.params.id);
     if (!section) {
       return res.status(404).json({ message: "Section not found" });
     }
