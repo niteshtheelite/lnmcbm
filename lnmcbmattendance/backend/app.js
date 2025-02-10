@@ -9,6 +9,8 @@ import studentDetails from "./routes/studentRoute.js";
 import courseDetails from "./routes/courseRoute.js";
 import sectionDetails from "./routes/sectionRoute.js";
 import attendanceDetails from "./routes/sectionRoute.js";
+import semesterDetails from "./routes/semesterRoute.js";
+import durationDetails from "./routes/durationRoutes.js";
 
 dotenv.config();
 const app = express();
@@ -20,7 +22,9 @@ app.use(express.json());
 
 app.use("/api/v1/student", studentDetails);
 app.use("/api/v1/course", courseDetails);
+app.use("/api/v1/semester", semesterDetails);
 app.use("/api/v1/section", sectionDetails);
+app.use("/api/v1/duration", durationDetails);
 app.use("/api/v1/attendance", attendanceDetails);
 
 app.get("/", (req, res) => {

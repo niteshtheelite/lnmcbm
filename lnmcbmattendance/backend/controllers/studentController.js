@@ -3,14 +3,14 @@ import { Student } from "../models/studentSchema.js";
 const createStudent = async (req, res) => {
   try {
     // Extract student data from the request body
-    const { rollNumber, name, department, session, semester } = req.body;
+    const { rollNumber, name, course, section, semester } = req.body;
 
     // Create a new student instance
     const newStudent = new Student({
       rollNumber,
       name,
-      department,
-      session,
+      course,
+      section,
       semester,
     });
 
@@ -40,13 +40,30 @@ const getStudents = async (req, res) => {
     res.status(500).json({ message: "Error geting student", error: err });
   }
 };
+const getFilterStudent = async (req, res) => {
+  try {
+    const { courseId, semesterId, sectionId } = req.query;
+    const query = {};
+    if (courseId) query.course = courseId;
+    if (semesterId) query.semester = semesterId;
+    if (sectionId) query.section = sectionId;
+
+    const students = await Student.find(query)
+      .populate("course")
+      .populate("semester")
+      .populate("section");
+    res.json(students);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 const updateStudent = async (req, res) => {
   try {
     const { rollNumber, name, department, session, semester } = req.body;
 
     const updatedStudent = await Student.findByIdAndUpdate(
       req.params.id,
-      { rollNumber, name, department, session, semester },
+      { rollNumber, name, course, session, semester },
       {
         new: true,
         runValidators: true,
@@ -78,4 +95,23 @@ const deleteStudent = async (req, res) => {
   }
 };
 
-export { createStudent, getStudents, updateStudent, deleteStudent };
+const getStudentOnSelection = async (req, res) => {
+  try {
+    const { course, semester, section } = req.query;
+
+    const students = await Student.find({ course, semester, section });
+
+    res.json(students);
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error });
+  }
+};
+
+export {
+  createStudent,
+  getStudents,
+  getFilterStudent,
+  updateStudent,
+  deleteStudent,
+  getStudentOnSelection,
+};

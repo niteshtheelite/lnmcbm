@@ -1,23 +1,24 @@
-import { Student } from "../models/studentSchema.js";
 import { Attendance } from "../models/attendanceSchema.js";
 
 const createAttendance = async (req, res) => {
   try {
-    const newAttendance = new Attendance(req.body);
-    const attendanceRecords = Student.map((student) => ({
-      student: student._id,
-      date,
-      duration,
-      present: student.present,
-    }));
+    const { courseId, semesterId, sectionId, durationId, students } = req.body;
 
-    await newAttendance.insertMany(attendanceRecords);
-    res.json({ message: "Attendance Saved sucessfully" });
+    const attendance = new Attendance({
+      course: courseId,
+      semester: semesterId,
+      section: sectionId,
+      duration: durationId,
+      students: students.map((student) => ({
+        student: student.studentId,
+        present: student.present,
+      })),
+    });
+
+    await attendance.save();
+    res.status(201).json(attendance);
   } catch (error) {
-    console.error(error);
-    res
-      .status(500)
-      .json({ message: "Error updating student", error: error.message });
+    res.status(400).json({ message: error.message });
   }
 };
 

@@ -20,6 +20,16 @@ const getSections = async (req, res) => {
     res.status(500).json({ message: "Error getting sections", error: err });
   }
 };
+const getSection = async (req, res) => {
+  try {
+    const { courseId } = req.query;
+    const sections = await Section.find(courseId ? { course: courseId } : {});
+    res.status(200).json(sections);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error getting sections", error: err });
+  }
+};
 
 const getSectionById = async (req, res) => {
   try {
@@ -65,6 +75,7 @@ const deleteSection = async (req, res) => {
 export {
   createSection,
   getSections,
+  getSection,
   getSectionById,
   updateSection,
   deleteSection,
