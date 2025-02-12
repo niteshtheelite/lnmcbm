@@ -14,7 +14,7 @@ const attendanceSchema = new mongoose.Schema({
   section: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Section",
-    // required: true,
+    required: true,
   },
   duration: {
     type: mongoose.Schema.Types.ObjectId,
@@ -31,7 +31,7 @@ const attendanceSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: "Student",
       },
-      persent: {
+      present: {
         type: Boolean,
         default: false,
       },

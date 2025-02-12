@@ -24,4 +24,6 @@ const studentSchema = new Schema(
   }
 );
 
+studentSchema.index({ rollNumber: 1, course: 1 }, { unique: true });
+
 export const Student = mongoose.model("Student", studentSchema);

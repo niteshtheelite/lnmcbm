@@ -2,9 +2,11 @@ import { Attendance } from "../models/attendanceSchema.js";
 
 const createAttendance = async (req, res) => {
   try {
-    const { courseId, semesterId, sectionId, durationId, students } = req.body;
+    const { teacherId, courseId, semesterId, sectionId, durationId, students } =
+      req.body;
 
     const attendance = new Attendance({
+      teacher: teacherId,
       course: courseId,
       semester: semesterId,
       section: sectionId,

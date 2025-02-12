@@ -8,7 +8,7 @@ import connectToDb from "./db/db.js";
 import studentDetails from "./routes/studentRoute.js";
 import courseDetails from "./routes/courseRoute.js";
 import sectionDetails from "./routes/sectionRoute.js";
-import attendanceDetails from "./routes/sectionRoute.js";
+import attendanceDetails from "./routes/attendanceRoute.js";
 import semesterDetails from "./routes/semesterRoute.js";
 import durationDetails from "./routes/durationRoutes.js";
 
