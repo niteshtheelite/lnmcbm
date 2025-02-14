@@ -5,10 +5,17 @@ const createStudent = async (req, res) => {
     // Extract student data from the request body
     const { rollNumber, name, course, section, semester } = req.body;
 
+    const rollNumberExist = await Student.findOne({ name });
+    if (rollNumberExist) {
+      return res.status(409).json({
+        message: "Student  already exists",
+      });
+    }
+
     // Create a new student instance
     const newStudent = new Student({
       rollNumber,
-      name,
+      name: name.toUpperCase(),
       course,
       section,
       semester,
@@ -32,7 +39,7 @@ const createStudent = async (req, res) => {
 };
 const getStudents = async (req, res) => {
   try {
-    const Students = await Student.find();
+    const Students = await Student.find().sort({ name: 1 });
 
     res.status(200).json(Students);
   } catch (error) {
@@ -51,7 +58,8 @@ const getFilterStudent = async (req, res) => {
     const students = await Student.find(query)
       .populate("course")
       .populate("semester")
-      .populate("section");
+      .populate("section")
+      .sort({ rollNumber: 1 });
     res.json(students);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -107,6 +115,71 @@ const getStudentOnSelection = async (req, res) => {
   }
 };
 
+const promoteAllStudents = async (req, res) => {
+  try {
+    const { currentSemesterId } = req.body;
+
+    // Step 1: Find all students in the given semester
+    const students = await Student.find({ semester: currentSemesterId });
+
+    if (students.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "No students found in this semester." });
+    }
+
+    // Step 2: Get the next semester for the same course
+    const currentSemester = await Semester.findById(currentSemesterId);
+    const nextSemester = await Semester.findOne({
+      course: currentSemester.course,
+      semesterNumber: currentSemester.semesterNumber + 1,
+    });
+
+    if (!nextSemester) {
+      return res.status(400).json({
+        message:
+          "No next semester found. Students may have completed the course.",
+      });
+    }
+
+    // Step 3: Filter students who are not yet promoted
+    const studentsToPromote = [];
+    for (let student of students) {
+      const existingStudent = await Student.findOne({
+        rollNumber: student.rollNumber,
+        course: student.course,
+        semester: nextSemester._id,
+      });
+
+      if (!existingStudent) {
+        studentsToPromote.push(student);
+      }
+    }
+
+    if (studentsToPromote.length === 0) {
+      return res.status(400).json({
+        message: "All students are already promoted to the next semester.",
+      });
+    }
+
+    // Step 4: Create new records for promoted students
+    const promotedStudents = studentsToPromote.map((student) => ({
+      rollNumber: student.rollNumber,
+      name: student.name,
+      course: student.course,
+      semester: nextSemester._id,
+    }));
+
+    await Student.insertMany(promotedStudents);
+
+    res.status(201).json({
+      message: "All students promoted successfully",
+      promotedCount: promotedStudents.length,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 export {
   createStudent,
   getStudents,
@@ -114,4 +187,5 @@ export {
   updateStudent,
   deleteStudent,
   getStudentOnSelection,
+  promoteAllStudents,
 };

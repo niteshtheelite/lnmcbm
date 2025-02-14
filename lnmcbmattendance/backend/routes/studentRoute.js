@@ -5,6 +5,7 @@ import {
   getFilterStudent,
   getStudentOnSelection,
   getStudents,
+  promoteAllStudents,
   updateStudent,
 } from "../controllers/studentController.js";
 
@@ -16,5 +17,6 @@ router.route("/filterStudent").get(getFilterStudent);
 router.route("/selectStudents").get(getStudentOnSelection);
 router.route("/:id").put(updateStudent);
 router.route("/:id").delete(deleteStudent);
+router.route("/promote").get(promoteAllStudents);
 
 export default router;

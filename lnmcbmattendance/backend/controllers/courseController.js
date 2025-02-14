@@ -2,8 +2,15 @@ import { Course } from "../models/courseSchema.js";
 
 const createCourse = async (req, res) => {
   try {
-    const newCourse = new Course(req.body);
-    await newCourse.save();
+    const { name } = req.body;
+    const courseExist = await Course.findOne({ name });
+    if (courseExist) {
+      return res.status(409).json({
+        message: "Course already exists",
+      });
+    }
+    const newCourse = await new Course({ name: name.toUpperCase() }).save();
+
     res.status(201).json(newCourse);
   } catch (err) {
     console.error(err);

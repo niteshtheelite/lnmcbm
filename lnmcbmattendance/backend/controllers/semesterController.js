@@ -2,8 +2,15 @@ import { Semester } from "../models/semesterSchema.js";
 
 const createSemester = async (req, res) => {
   try {
-    const newSemester = new Semester(req.body);
-    await newSemester.save();
+    const { name } = req.body;
+    const semesterExist = await Semester.findOne({ name });
+    if (semesterExist) {
+      return res.status(409).json({
+        message: "Semester already exists",
+      });
+    }
+    const newSemester = await new Semester({ name }).save();
+
     res.status(201).json(newSemester);
   } catch (err) {
     console.error(err);
@@ -13,7 +20,7 @@ const createSemester = async (req, res) => {
 
 const getSemester = async (req, res) => {
   try {
-    const semester = await Semester.find();
+    const semester = await Semester.find().sort({ name: 1 });
     res.status(200).json(semester);
   } catch (err) {
     console.error(err);

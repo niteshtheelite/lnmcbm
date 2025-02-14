@@ -2,8 +2,15 @@ import { Section } from "../models/sectionSchema.js";
 
 const createSection = async (req, res) => {
   try {
-    const newSection = new Section(req.body);
-    await newSection.save();
+    const { name } = req.body;
+    const sectionExist = await Section.findOne({ name });
+    if (sectionExist) {
+      return res.status(409).json({
+        message: "Section already exists",
+      });
+    }
+    const newSection = await new Section({ name }).save();
+
     res.status(201).json(newSection);
   } catch (err) {
     console.error(err);
@@ -13,17 +20,25 @@ const createSection = async (req, res) => {
 
 const getSections = async (req, res) => {
   try {
-    const sections = await Section.find();
+    const sections = await Section.find()
+      .sort({ name: 1 }) // Sort by the "name" field
+      .collation({ locale: "en", strength: 2 }); // Case-insensitive sorting
+
     res.status(200).json(sections);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Error getting sections", error: err });
+    res.status(500).json({
+      message: "Error getting sections",
+      error: err,
+    });
   }
 };
 const getSection = async (req, res) => {
   try {
     const { courseId } = req.query;
-    const sections = await Section.find(courseId ? { course: courseId } : {});
+    const sections = await Section.find(courseId ? { course: courseId } : {})
+      .sort({ name: 1 })
+      .collation({ locale: "en", strength: 2 });
     res.status(200).json(sections);
   } catch (err) {
     console.error(err);
