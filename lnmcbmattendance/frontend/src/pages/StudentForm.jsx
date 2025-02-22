@@ -1,16 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
+import Toast from "../allcomponents/Toast"; // Adjust the path as necessary
 
 const StudentForm = () => {
   const [formData, setFormData] = useState({
@@ -28,7 +18,8 @@ const StudentForm = () => {
   });
 
   const [loading, setLoading] = useState(false);
-  const { toast } = useToast();
+  const [toastMessage, setToastMessage] = useState("");
+  const [showToast, setShowToast] = useState(false);
 
   useEffect(() => {
     const fetchOptions = async () => {
@@ -45,11 +36,7 @@ const StudentForm = () => {
           sections: sectionsRes.data,
         });
       } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to fetch options. Please try again.",
-          variant: "destructive",
-        });
+        displayToast("Failed to fetch options. Please try again.");
       }
     };
 
@@ -64,10 +51,11 @@ const StudentForm = () => {
     }));
   };
 
-  const handleSelectChange = (value, field) => {
+  const handleSelectChange = (e) => {
+    const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [field]: value,
+      [name]: value,
     }));
   };
 
@@ -81,10 +69,7 @@ const StudentForm = () => {
         formData
       );
 
-      toast({
-        title: "Success",
-        description: "Student added successfully!",
-      });
+      displayToast("Student added successfully!");
 
       // Reset form
       setFormData({
@@ -95,120 +80,126 @@ const StudentForm = () => {
         section: "",
       });
     } catch (error) {
-      toast({
-        title: "Error",
-        description: error.response?.data?.message || "Failed to add student",
-        variant: "destructive",
-      });
+      displayToast(error.response?.data?.message || "Failed to add student");
     } finally {
       setLoading(false);
     }
   };
 
+  const displayToast = (message) => {
+    setToastMessage(message);
+    setShowToast(true);
+    setTimeout(() => {
+      setShowToast(false);
+    }, 3000); // Toast will disappear after 3 seconds
+  };
+
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50 p-4">
-      <Card className="w-full max-w-lg">
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold text-center">
-            Add New Student
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Name</label>
-              <Input
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                placeholder="Enter student name"
-                required
-                className="w-full"
-              />
-            </div>
+      <div className="w-full max-w-lg bg-white shadow-md rounded-lg p-6">
+        <h2 className="text-2xl font-bold text-center mb-4">Add New Student</h2>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Name</label>
+            <input
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleInputChange}
+              placeholder="Enter student name"
+              required
+              className="w-full border border-gray-300 rounded-md p-2"
+            />
+          </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Roll Number</label>
-              <Input
-                name="rollNumber"
-                value={formData.rollNumber}
-                onChange={handleInputChange}
-                placeholder="Enter roll number"
-                required
-                className="w-full"
-              />
-            </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Roll Number</label>
+            <input
+              type="text"
+              name="rollNumber"
+              value={formData.rollNumber}
+              onChange={handleInputChange}
+              placeholder="Enter roll number"
+              required
+              className="w-full border border-gray-300 rounded-md p-2"
+            />
+          </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Course</label>
-              <Select
-                value={formData.course}
-                onValueChange={(value) => handleSelectChange(value, "course")}
-                required
-              >
-                <SelectTrigger className="w-full ">
-                  <SelectValue placeholder="Select course" />
-                </SelectTrigger>
-                <SelectContent className="z-50 w-full text-center">
-                  {options.courses.map((course) => (
-                    <SelectItem
-                      key={course._id}
-                      value={course._id}
-                      className="text-center"
-                    >
-                      {course.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Course</label>
+            <select
+              name="course"
+              value={formData.course}
+              onChange={handleSelectChange}
+              required
+              className="w-full border border-gray-300 rounded-md p-2"
+            >
+              <option value="" disabled>
+                Select course
+              </option>
+              {options.courses.map((course) => (
+                <option key={course._id} value={course._id}>
+                  {course.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Semester</label>
-              <Select
-                value={formData.semester}
-                onValueChange={(value) => handleSelectChange(value, "semester")}
-                required
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select semester" />
-                </SelectTrigger>
-                <SelectContent>
-                  {options.semesters.map((semester) => (
-                    <SelectItem key={semester._id} value={semester._id}>
-                      {semester.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Semester</label>
+            <select
+              name="semester"
+              value={formData.semester}
+              onChange={handleSelectChange}
+              required
+              className="w-full border border-gray-300 rounded-md p-2"
+            >
+              <option value="" disabled>
+                Select semester
+              </option>
+              {options.semesters.map((semester) => (
+                <option key={semester._id} value={semester._id}>
+                  {semester.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Section</label>
-              <Select
-                value={formData.section}
-                onValueChange={(value) => handleSelectChange(value, "section")}
-                required
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select section" />
-                </SelectTrigger>
-                <SelectContent>
-                  {options.sections.map((section) => (
-                    <SelectItem key={section._id} value={section._id}>
-                      {section.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Section</label>
+            <select
+              name="section"
+              value={formData.section}
+              onChange={handleSelectChange}
+              required
+              className="w-full border border-gray-300 rounded-md p-2"
+            >
+              <option value="" disabled>
+                Select section
+              </option>
+              {options.sections.map((section) => (
+                <option key={section._id} value={section._id}>
+                  {section.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Adding Student..." : "Add Student"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          <button
+            type="submit"
+            className={`w-full bg-blue-500 text-white rounded-md p-2 ${
+              loading ? "opacity-50 cursor-not-allowed" : ""
+            }`}
+            disabled={loading}
+          >
+            {loading ? "Adding Student..." : "Add Student"}
+          </button>
+        </form>
+      </div>
+
+      {showToast && (
+        <Toast message={toastMessage} onClose={() => setShowToast(false)} />
+      )}
     </div>
   );
 };

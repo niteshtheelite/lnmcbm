@@ -144,22 +144,6 @@ const AttendancePercentage = () => {
         ))}
       </select>
 
-      {/* Duration Dropdown */}
-      <select
-        value={formData.durationId}
-        onChange={(e) =>
-          setFormData({ ...formData, durationId: e.target.value })
-        }
-        className="mr-4 p-2 border rounded"
-      >
-        <option value="">Select Duration</option>
-        {durations.map((duration) => (
-          <option key={duration._id} value={duration._id}>
-            {duration.name} ({duration.hours} hours)
-          </option>
-        ))}
-      </select>
-
       {/* Get Percentage Button */}
       <button
         onClick={handleGetPercentage}
