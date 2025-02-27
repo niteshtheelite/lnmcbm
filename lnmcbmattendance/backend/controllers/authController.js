@@ -1,58 +1,56 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { User } from "../models/userSchema.js";
-import nodemailer from "nodemailer";
+import sendToken from "../utils/jwtToken.js";
 
-export const register = async (req, res) => {
+export const register = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    // Check if the user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: "User already exists" });
+    }
 
     // Ensure only the first registered user is an admin
     const isFirstUser = (await User.countDocuments()) === 0;
-    const role = isFirstUser ? "admin" : "student"; // First user = admin, others = student
+    const role = isFirstUser ? "admin" : "teacher"; // First user = admin, others = student
 
-    const newUser = new User({ name, email, password: hashedPassword, role });
-    await newUser.save();
-
-    res.status(201).json({ message: "User registered successfully", role });
+    const user = await User.create({ name, email, password, role });
+    sendToken(user, 201, res);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-export const login = async (req, res) => {
+export const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
+    if (!email || !password) {
+      return next("Pleasee enter a valid Email and password");
+    }
+
     // Check if user exists
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: "User not found" });
+    const user = await User.findOne({ email }).select("+password");
 
-    // Validate password
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch)
-      return res.status(401).json({ message: "Invalid credentials" });
+    if (!user) {
+      return next("email invalid");
+    }
 
-    // Generate JWT token
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "1d" }
-    );
+    const ispasswordMatched = await user.comaparedPassword(password);
 
-    res.json({
-      message: "Login successful",
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
-    });
+    if (!ispasswordMatched) {
+      return "Inavlid password";
+    }
+    sendToken(user, 200, res);
+
+    sendToken(user, 200, res);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
