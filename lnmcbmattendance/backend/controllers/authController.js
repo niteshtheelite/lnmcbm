@@ -43,14 +43,28 @@ export const login = async (req, res, next) => {
       return next("email invalid");
     }
 
-    const ispasswordMatched = await user.comaparedPassword(password);
+    const ispasswordMatched = await user.comparePassword(password);
 
     if (!ispasswordMatched) {
-      return "Inavlid password";
+      return next("Inavlid password");
     }
     sendToken(user, 200, res);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 
-    sendToken(user, 200, res);
+export const logout = async (req, res, next) => {
+  try {
+    res.cookie("token", null, {
+      expires: new Date(Date.now()),
+      httpOnly: true,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Logged Out",
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
