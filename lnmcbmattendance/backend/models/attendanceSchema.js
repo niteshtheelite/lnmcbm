@@ -37,10 +37,10 @@ const attendanceSchema = new mongoose.Schema({
       },
     },
   ],
-  markedBy: {
+  user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
-    // required: true,
+    required: true,
   },
 });
 export const Attendance = mongoose.model("Attendance", attendanceSchema);

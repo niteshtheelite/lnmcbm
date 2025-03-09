@@ -3,6 +3,10 @@ import { Student } from "../models/studentSchema.js";
 
 const createAttendance = async (req, res) => {
   try {
+    // req.body.user = req.user.id;
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized: No user found" });
+    }
     const { courseId, semesterId, sectionId, durationId, students } = req.body;
 
     if (!courseId || !semesterId || !sectionId || !durationId || !students) {
@@ -29,6 +33,7 @@ const createAttendance = async (req, res) => {
 
     // If no duplicate attendance, save the new record
     const attendance = new Attendance({
+      user: req.user._id,
       course: courseId,
       semester: semesterId,
       section: sectionId,
