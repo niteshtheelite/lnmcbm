@@ -1,7 +1,10 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import {
+  ATTENDANCE_URL,
+  AUTH_URL,
   BASE_URl,
   COURSE_URL,
+  DURATION_URL,
   SECTION_URL,
   SEMESTER_URL,
   STUDENT_URL,
@@ -140,6 +143,68 @@ export const apliSlice = createApi({
       }),
       invalidatesTags: ["Section"],
     }),
+
+    //Duration api end point
+    addDuration: builder.mutation({
+      query: (duration) => ({
+        url: `${DURATION_URL}/createDuration`,
+        method: "POST",
+        body: duration,
+      }),
+      invalidatesTags: ["Duration"],
+    }),
+    getDuration: builder.query({
+      query: () => `${DURATION_URL}/allDuration`,
+      providesTags: ["Duration"],
+    }),
+    updateDuration: builder.mutation({
+      query: ({ id, ...duration }) => ({
+        url: `${DURATION_URL}/${id}`,
+        method: "PUT",
+        body: duration,
+      }),
+      invalidatesTags: ["Duration"],
+    }),
+    deleteDuration: builder.mutation({
+      query: ({ id }) => ({
+        url: `${DURATION_URL}/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["Duration"],
+    }),
+
+    //Attendance api end point
+    addAttendance: builder.mutation({
+      query: (attendance) => ({
+        url: `${ATTENDANCE_URL}/createAttendance`,
+        method: "POST",
+        body: attendance,
+      }),
+      invalidatesTags: ["Attendance"],
+    }),
+
+    //Auth api end point
+    registerAuth: builder.mutation({
+      query: (register) => ({
+        url: `${AUTH_URL}/register`,
+        method: "POST",
+        body: register,
+      }),
+      invalidatesTags: ["Auth"],
+    }),
+    loginAuth: builder.mutation({
+      query: (login) => ({
+        url: `${AUTH_URL}/login`,
+        method: "POST",
+        body: login,
+      }),
+      invalidatesTags: ["Auth"],
+    }),
+
+    logoutAuth: builder.query({
+      query: () => `${AUTH_URL}/logout`,
+      providesTags: ["Auth"],
+    }),
   }),
 });
 
@@ -171,4 +236,18 @@ export const {
   useGetsByIdSectionQuery,
   useGetsSectionQuery,
   useUpdateSectionMutation,
+
+  //Duration
+  useAddDurationMutation,
+  useDeleteDurationMutation,
+  useGetDurationQuery,
+  useUpdateDurationMutation,
+
+  //Attendance
+  useAddAttendanceMutation,
+
+  //Authentication
+  useRegisterAuthMutation,
+  useLoginAuthMutation,
+  useLogoutAuthQuery,
 } = apliSlice;
