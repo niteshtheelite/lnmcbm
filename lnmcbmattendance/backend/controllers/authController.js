@@ -30,29 +30,72 @@ export const register = async (req, res, next) => {
   }
 };
 
-export const login = async (req, res, next) => {
+// export const login = async (req, res, next) => {
+//   try {
+//     const { email, password } = req.body;
+
+//     if (!email || !password) {
+//       return next("Pleasee enter a valid Email and password");
+//     }
+
+//     // Check if user exists
+//     const user = await User.findOne({ email }).select("+password");
+
+//     if (!user) {
+//       return next("email invalid");
+//     }
+
+//     const ispasswordMatched = await user.comparePassword(password);
+
+//     if (!ispasswordMatched) {
+//       return next("Inavlid password");
+//     }
+//     sendToken(user, 200, res);
+//   } catch (error) {
+//     res.status(500).json({ message: error.message });
+//   }
+// };
+
+export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    // ✅ 1. Validate Email and Password
     if (!email || !password) {
-      return next("Pleasee enter a valid Email and password");
+      return res.status(400).json({
+        success: false,
+        message: "Please enter a valid Email and Password",
+      });
     }
 
-    // Check if user exists
+    // ✅ 2. Check if user exists
     const user = await User.findOne({ email }).select("+password");
 
     if (!user) {
-      return next("email invalid");
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or user not found",
+      });
     }
 
-    const ispasswordMatched = await user.comparePassword(password);
+    // ✅ 3. Compare Password
+    const isPasswordMatched = await user.comparePassword(password);
 
-    if (!ispasswordMatched) {
-      return next("Inavlid password");
+    if (!isPasswordMatched) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid password",
+      });
     }
+
+    // ✅ 4. Send Token + User Response
     sendToken(user, 200, res);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Login Error:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
   }
 };
 

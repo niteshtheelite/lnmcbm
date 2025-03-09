@@ -12,7 +12,24 @@ import {
 
 export const apliSlice = createApi({
   reducerPath: "api",
-  baseQuery: fetchBaseQuery({ baseUrl: BASE_URl }),
+  baseQuery: fetchBaseQuery({
+    baseUrl: BASE_URl,
+    prepareHeaders: (headers, { getState }) => {
+      const token = getState()?.auth?.token;
+      if (token) {
+        headers.set("authorization", `Bearer ${token}`);
+      }
+      return headers;
+    },
+    async onError(response, { dispatch }) {
+      if (response.status === 401 || response.status === 403) {
+        // ✅ Token Expired or Unauthorized
+        dispatch(logout()); // Force Logout
+        window.location.href = "/login"; // Redirect to login
+      }
+    },
+  }),
+
   tagTypes: ["Student", "User", "Course", "Semester", "Section", "Attendance"],
 
   endpoints: (builder) => ({
