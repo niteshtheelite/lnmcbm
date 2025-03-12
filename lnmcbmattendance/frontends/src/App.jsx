@@ -13,34 +13,64 @@ import { useSelector } from "react-redux";
 import Login from "./auth/Login";
 
 const App = () => {
-  const { user } = useSelector((state) => state.user) || { user: null };
+  const { userInfo } = useSelector((state) => state.auth) || { userInfo: null };
 
   return (
+    // <Router>
+    //   <Routes>
+    //     <Route path="/" element={<Navigate to="/login" />} />
+    //     {/* ✅ Public Route */}
+    //     <Route path="/login" element={<Login />} />
+
+    //     {/* ✅ Admin Routes */}
+    //     <Route
+    //       path="/admin/dashboard/*"
+    //       element={
+    //         <ProtectedRoute role="admin">
+    //           <AdminDashboard />
+    //         </ProtectedRoute>
+    //       }
+    //     />
+
+    //     {/* ✅ Teacher Routes */}
+    //     <Route
+    //       path="/teacher/dashboard/*"
+    //       element={
+    //         <ProtectedRoute role="teacher">
+    //           <TeacherDashboard />
+    //         </ProtectedRoute>
+    //       }
+    //     />
+    //   </Routes>
+    // </Router>
+
     <Router>
       <Routes>
-        <Route path="/" element={<Navigate to="/login" />} />
-        {/* ✅ Public Route */}
+        {/* ✅ Login Page */}
         <Route path="/login" element={<Login />} />
 
-        {/* ✅ Admin Routes */}
+        {/* ✅ Admin Protected Route */}
         <Route
           path="/admin/dashboard/*"
           element={
-            <ProtectedRoute role="admin">
+            <ProtectedRoute allowedRole="admin">
               <AdminDashboard />
             </ProtectedRoute>
           }
         />
 
-        {/* ✅ Teacher Routes */}
+        {/* ✅ Teacher Protected Route */}
         <Route
           path="/teacher/dashboard/*"
           element={
-            <ProtectedRoute role="teacher">
+            <ProtectedRoute allowedRole="teacher">
               <TeacherDashboard />
             </ProtectedRoute>
           }
         />
+
+        {/* ✅ Default Route */}
+        <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
     </Router>
   );

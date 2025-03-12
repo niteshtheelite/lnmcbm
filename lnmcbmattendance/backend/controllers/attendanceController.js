@@ -1,28 +1,34 @@
 import { Attendance } from "../models/attendanceSchema.js";
 import { Student } from "../models/studentSchema.js";
+import { Course } from "../models/courseSchema.js";
+import { Semester } from "../models/semesterSchema.js";
 
 const createAttendance = async (req, res) => {
   try {
-    // req.body.user = req.user.id;
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized: No user found" });
     }
+
     const { courseId, semesterId, sectionId, durationId, students } = req.body;
 
     if (!courseId || !semesterId || !sectionId || !durationId || !students) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    // Get today's date in YYYY-MM-DD format
-    const today = new Date().toISOString().split("T")[0];
+    // ✅ Get today's date
+    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
 
-    // Check if attendance already exists for the same duration and date
+    // ✅ Define the start and end of the day
+    const startOfDay = new Date(today); // Midnight (00:00:00)
+    const endOfDay = new Date(today + "T23:59:59.999Z"); // End of day (23:59:59.999)
+
+    // ✅ Prevent Duplicate Attendance (same day)
     const existingAttendance = await Attendance.findOne({
       course: courseId,
       semester: semesterId,
       section: sectionId,
       duration: durationId,
-      date: { $gte: new Date(today), $lt: new Date(today + "T23:59:59.999Z") },
+      date: { $gte: startOfDay, $lt: endOfDay }, // Date range filter
     });
 
     if (existingAttendance) {
@@ -31,14 +37,20 @@ const createAttendance = async (req, res) => {
       });
     }
 
-    // If no duplicate attendance, save the new record
+    // ✅ Format Students Array
+    const formattedStudents = students.map((item) => ({
+      student: item.studentId,
+      present: item.present,
+    }));
+
+    // ✅ Save Attendance
     const attendance = new Attendance({
       user: req.user._id,
       course: courseId,
       semester: semesterId,
       section: sectionId,
       duration: durationId,
-      students,
+      students: formattedStudents,
       date: new Date(),
     });
 
@@ -50,197 +62,182 @@ const createAttendance = async (req, res) => {
   }
 };
 
-// const getAttendancePercentage = async (req, res) => {
-//   try {
-//     const { courseId, semesterId, sectionId } = req.query;
-
-//     if (!courseId || !semesterId || !sectionId) {
-//       return res.status(400).json({ message: "Missing required parameters" });
-//     }
-
-//     // Fetch students for the given course, semester, and section
-//     const students = await Student.find({
-//       course: courseId,
-//       semester: semesterId,
-//       section: sectionId,
-//     });
-
-//     if (!students || students.length === 0) {
-//       return res.status(404).json({ message: "No students found" });
-//     }
-
-//     // Fetch attendance records for the selected course, semester, and section
-//     const attendanceRecords = await Attendance.find({
-//       course: courseId,
-//       semester: semesterId,
-//       section: sectionId,
-//     });
-
-//     if (!attendanceRecords || attendanceRecords.length === 0) {
-//       return res.status(404).json({ message: "No attendance records found" });
-//     }
-
-//     console.log("Total Attendance Records:", attendanceRecords.length);
-
-//     // Calculate attendance percentage for each student
-//     const attendanceData = students.map((student) => {
-//       // Count total classes for this section
-//       const totalClasses = attendanceRecords.length;
-
-//       // Count the number of classes the student attended
-//       const attendedClasses = attendanceRecords.filter((record) =>
-//         record.students.find(
-//           (s) =>
-//             s.student?.toString() === student._id.toString() &&
-//             s.present === true
-//         )
-//       ).length;
-
-//       console.log(`Student: ${student.name} (Roll: ${student.rollNumber})`);
-//       console.log(
-//         `Total Classes: ${totalClasses}, Attended: ${attendedClasses}`
-//       );
-
-//       return {
-//         studentId: student._id,
-//         rollNumber: student.rollNumber,
-//         name: student.name,
-//         percentage:
-//           totalClasses > 0
-//             ? ((attendedClasses / totalClasses) * 100).toFixed(2)
-//             : "0",
-//       };
-//     });
-
-//     res.status(200).json(attendanceData);
-//   } catch (error) {
-//     console.error("Error in getAttendancePercentage:", error);
-//     res.status(500).json({ message: error.message });
-//   }
-// };
-
+// ✅ GET ATTENDANCE PERCENTAGE OF STUDENT
 const getAttendancePercentage = async (req, res) => {
-  const { courseId, semesterId, sectionId } = req.query;
-
-  if (!courseId || !semesterId || !sectionId) {
-    return res
-      .status(400)
-      .json({ message: "Course, semester, and section IDs are required" });
-  }
-
   try {
-    // Find attendance records based on course, semester, and section
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ message: "Student ID is required" });
+    }
+
+    // ✅ Find All Attendance Records For This Student
+    const attendanceRecords = await Attendance.find({
+      "students.student": id,
+    });
+
+    if (attendanceRecords.length === 0) {
+      return res.status(404).json({ message: "No attendance record found" });
+    }
+
+    // ✅ Calculate Present & Total Days
+    let totalClasses = 0;
+    let presentClasses = 0;
+
+    attendanceRecords.forEach((attendance) => {
+      attendance.students.forEach((studentRecord) => {
+        if (String(studentRecord.student) === String(id)) {
+          totalClasses++;
+          if (studentRecord.present) {
+            presentClasses++;
+          }
+        }
+      });
+    });
+
+    // ✅ Calculate Percentage
+    const percentage = (presentClasses / totalClasses) * 100;
+
+    res.status(200).json({
+      totalClasses,
+      presentClasses,
+      percentage: `${percentage.toFixed(2)}%`,
+    });
+  } catch (error) {
+    console.error("Error fetching attendance:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const getFilteredAttendanceByName = async (req, res) => {
+  try {
+    const { courseName, semesterName } = req.query;
+
+    if (!courseName || !semesterName) {
+      return res
+        .status(400)
+        .json({ message: "Course Name and Semester Name are required" });
+    }
+
+    // ✅ Find Course ID Based on Course Name
+    const course = await Course.findOne({ name: courseName });
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+
+    // ✅ Find Semester ID Based on Semester Name
+    const semester = await Semester.findOne({ name: semesterName });
+    if (!semester) {
+      return res.status(404).json({ message: "Semester not found" });
+    }
+
+    // ✅ Fetch Attendance Based On Filters
+    const attendanceRecords = await Attendance.find({
+      course: course._id,
+      semester: semester._id,
+    });
+
+    if (attendanceRecords.length === 0) {
+      return res.status(404).json({ message: "No attendance record found" });
+    }
+
+    // ✅ Calculate Total Classes, Present Classes
+    let totalClasses = 0;
+    let presentClasses = 0;
+
+    attendanceRecords.forEach((attendance) => {
+      attendance.students.forEach((studentRecord) => {
+        totalClasses++;
+        if (studentRecord.present) {
+          presentClasses++;
+        }
+      });
+    });
+
+    // ✅ Calculate Attendance Percentage
+    const percentage = ((presentClasses / totalClasses) * 100).toFixed(2);
+
+    res.status(200).json({
+      courseName,
+      semesterName,
+      totalClasses,
+      presentClasses,
+      percentage,
+    });
+  } catch (error) {
+    console.error("Error fetching attendance:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const getFilteredAttendance = async (req, res) => {
+  try {
+    const { courseId, semesterId, sectionId } = req.query;
+    const query = {};
+
+    if (courseId) query.course = mongoose.Types.ObjectId(courseId);
+    if (semesterId) query.semester = mongoose.Types.ObjectId(semesterId);
+    if (sectionId) query.section = mongoose.Types.ObjectId(sectionId);
+
+    const students = await Attendance.find(query)
+      .populate("course")
+      .populate("semester")
+      .populate("section")
+      .sort({ rollNumber: 1 });
+
+    res.json(students);
+  } catch (error) {
+    console.error("Error fetching attendance:", error);
+    res.status(500).json({ message: "Error fetching attendance" });
+  }
+};
+
+export const getAttendanceReport = async (req, res) => {
+  try {
+    const { courseId, semesterId, sectionId } = req.body;
+
+    if (!courseId || !semesterId || !sectionId) {
+      return res
+        .status(400)
+        .json({ message: "Course, Semester, and Section are required!" });
+    }
+
+    const students = await Student.find({
+      course: courseId,
+      semester: semesterId,
+      section: sectionId,
+    });
     const attendanceRecords = await Attendance.find({
       course: courseId,
       semester: semesterId,
       section: sectionId,
     });
 
-    if (attendanceRecords.length === 0) {
-      return res.status(404).json({
-        message:
-          "No attendance records found for the specified course, semester, and section",
-      });
-    }
-
-    // Calculate total attendance percentage
-    let totalStudents = 0;
-    let totalPresent = 0;
-
-    attendanceRecords.forEach((record) => {
-      totalStudents += record.students.length;
-      totalPresent += record.students.filter(
-        (student) => student.present
+    const totalClasses = attendanceRecords.length;
+    const attendanceReport = students.map((student) => {
+      const presentCount = attendanceRecords.filter((record) =>
+        record.students.some(
+          (s) => s.student.toString() === student._id.toString() && s.present
+        )
       ).length;
+
+      return {
+        rollNumber: student.rollNumber,
+        name: student.name,
+        totalClasses,
+        presentClasses: presentCount,
+      };
     });
 
-    const attendancePercentage =
-      totalStudents > 0 ? (totalPresent / totalStudents) * 100 : 0;
-
-    // Prepare student attendance details
-    const studentAttendance = attendanceRecords.flatMap((record) =>
-      record.students.map((student) => ({
-        id: student._id,
-        present: student.present,
-        attendancePercentage: student.present ? 100 : 0, // Individual attendance percentage
-      }))
-    );
-
-    return res.json({
-      attendancePercentage: attendancePercentage.toFixed(2),
-      students: studentAttendance,
-    });
+    res.status(200).json({ totalClasses, students: attendanceReport });
   } catch (error) {
-    console.error(error);
-    return res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: "Server Error", error: error.message });
   }
 };
 
-export const calculateAttendancePercentage = async (
-  courseId,
-  semesterId,
-  sectionId
-) => {
-  const aggregationPipeline = [
-    {
-      $match: {
-        course: mongoose.Types.ObjectId(courseId),
-        semester: mongoose.Types.ObjectId(semesterId),
-        section: mongoose.Types.ObjectId(sectionId),
-      },
-    },
-    {
-      $facet: {
-        totalDays: [{ $count: "totalDays" }],
-        students: [
-          { $unwind: "$students" },
-          {
-            $group: {
-              _id: "$students.student",
-              presentDays: {
-                $sum: { $cond: ["$students.present", 1, 0] },
-              },
-            },
-          },
-        ],
-      },
-    },
-    { $unwind: { path: "$totalDays", preserveNullAndEmptyArrays: true } },
-    { $unwind: "$students" },
-    {
-      $addFields: {
-        computedTotalDays: { $ifNull: ["$totalDays.totalDays", 0] },
-      },
-    },
-    {
-      $addFields: {
-        "students.percentage": {
-          $cond: [
-            { $eq: ["$computedTotalDays", 0] },
-            0,
-            {
-              $multiply: [
-                { $divide: ["$students.presentDays", "$computedTotalDays"] },
-                100,
-              ],
-            },
-          ],
-        },
-        "students.totalDays": "$computedTotalDays",
-      },
-    },
-    {
-      $project: {
-        studentId: "$students._id",
-        presentDays: "$students.presentDays",
-        totalDays: "$students.totalDays",
-        percentage: "$students.percentage",
-      },
-    },
-  ];
-
-  const result = await Attendance.aggregate(aggregationPipeline);
-  return result;
+export {
+  createAttendance,
+  getAttendancePercentage,
+  getFilteredAttendanceByName,
+  getFilteredAttendance,
 };
-
-export { createAttendance, getAttendancePercentage };

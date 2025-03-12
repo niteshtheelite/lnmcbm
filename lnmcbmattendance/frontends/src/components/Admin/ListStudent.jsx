@@ -3,10 +3,13 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   useGetCourseQuery,
-  useGetFilterStudentQuery,
-  useGetSemesterQuery,
-  useGetsSectionQuery,
-} from "../../redux/apiSlice";
+  // useGetFilterStudentQuery,
+  // useGetSemesterQuery,
+  // useGetsSectionQuery,
+} from "../../redux/api/courseApiSlice";
+import { useGetFilterStudentQuery } from "../../redux/api/studentsApiSlice";
+import { useGetSemesterQuery } from "../../redux/api/semesterApiSlice";
+import { useGetsSectionQuery } from "../../redux/api/sectionApiSlice";
 
 const ListStudent = () => {
   const [courseId, setCourseId] = useState("");

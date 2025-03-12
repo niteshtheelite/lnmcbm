@@ -3,7 +3,8 @@ import { User } from "../models/userSchema.js";
 
 export const isAuthenticatedUser = async (req, res, next) => {
   try {
-    const token = req.cookies.token;
+    const token =
+      req.cookies.token || req.header("Authorization")?.replace("Bearer ", "");
     if (!token) {
       return res.status(401).json({ message: "Please login to access" });
     }

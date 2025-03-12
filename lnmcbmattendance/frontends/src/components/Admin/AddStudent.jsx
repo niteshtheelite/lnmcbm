@@ -2,12 +2,11 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import {
-  useAddStudentMutation,
-  useGetCourseQuery,
-  useGetSemesterQuery,
-  useGetsSectionQuery,
-} from "../../redux/apiSlice";
+
+import { useGetCourseQuery } from "../../redux/api/courseApiSlice";
+import { useAddStudentMutation } from "../../redux/api/studentsApiSlice";
+import { useGetSemesterQuery } from "../../redux/api/semesterApiSlice";
+import { useGetsSectionQuery } from "../../redux/api/sectionApiSlice";
 
 const AddStudent = () => {
   const navigate = useNavigate();
@@ -45,8 +44,20 @@ const AddStudent = () => {
     if (!formData.semesterId) return toast.error("Semester is required");
     if (!formData.sectionId) return toast.error("Section is required");
 
+    // Log the formData to check if the fields are populated correctly
+    console.log("Submitting Student Data:", formData);
+
+    // Send data using correct field names for the backend
+    const formattedData = {
+      name: formData.name,
+      rollNumber: formData.rollNumber,
+      course: formData.courseId, // ✅ Match backend schema
+      semester: formData.semesterId, // ✅ Match backend schema
+      section: formData.sectionId,
+    };
+
     try {
-      const response = await addStudent(formData);
+      const response = await addStudent(formattedData);
       if (response.error) {
         toast.error(response.error.data.message);
       } else {

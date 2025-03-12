@@ -30,8 +30,4 @@ app.use("/api/v1/section", sectionDetails);
 app.use("/api/v1/duration", durationDetails);
 app.use("/api/v1/attendance", attendanceDetails);
 
-app.get("/", (req, res) => {
-  res.send("Hello World");
-});
-
 export default app;
