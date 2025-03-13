@@ -182,13 +182,13 @@ const TeacherSidebar = ({ isOpen, setIsOpen }) => {
           >
             ✅ Take Attendance
           </Link>
-          <Link
+          {/* <Link
             to="/teacher/dashboard/list-student"
             className="block p-2 hover:bg-gray-700"
             onClick={() => setIsOpen(false)}
           >
             📋 List Student
-          </Link>
+          </Link> */}
 
           <Link
             to="/teacher/dashboard/attendance-report"

@@ -59,6 +59,13 @@ const AdminSidebar = ({ isOpen, setIsOpen }) => {
             ✅ Register Teacher
           </Link>
           <Link
+            to="/admin/dashboard/attendanceReport"
+            className="block p-2 hover:bg-gray-700"
+            onClick={() => setIsOpen(false)}
+          >
+            ✅ Attendance Report
+          </Link>
+          <Link
             to="/admin/dashboard/add-course"
             className="block p-2 hover:bg-gray-700"
             onClick={() => setIsOpen(false)}

@@ -293,6 +293,7 @@ function TakeAttendance() {
                     <td className="border p-2">
                       <input
                         type="checkbox"
+                        className="w-6 h-6"
                         checked={attendance[student._id] || false}
                         onChange={(e) =>
                           handleAttendanceChange(student._id, e.target.checked)

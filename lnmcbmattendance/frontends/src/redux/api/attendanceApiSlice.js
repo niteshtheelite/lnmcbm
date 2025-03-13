@@ -18,8 +18,17 @@ export const attendanceApiSlice = apiSlice.injectEndpoints({
       query: () => `${ATTENDANCE_URL}/filterAttendance`,
       providesTags: ["Attendance"],
     }),
+
+    getfilterAttendance: builder.query({
+      query: ({ course, semester, section }) =>
+        `${ATTENDANCE_URL}/students?course=${course}&semester=${semester}&section=${section}`,
+      providesTags: ["Attendance"],
+    }),
   }),
 });
 
-export const { useAddAttendanceMutation, useFilterAttendanceQuery } =
-  attendanceApiSlice;
+export const {
+  useAddAttendanceMutation,
+  useFilterAttendanceQuery,
+  useGetfilterAttendanceQuery,
+} = attendanceApiSlice;

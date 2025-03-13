@@ -1,13 +1,8 @@
 import React, { useState } from "react";
 
 import { Link } from "react-router-dom";
-import {
-  useGetCourseQuery,
-  // useGetFilterStudentQuery,
-  // useGetSemesterQuery,
-  // useGetsSectionQuery,
-} from "../../redux/api/courseApiSlice";
 import { useGetFilterStudentQuery } from "../../redux/api/studentsApiSlice";
+import { useGetCourseQuery } from "../../redux/api/courseApiSlice";
 import { useGetSemesterQuery } from "../../redux/api/semesterApiSlice";
 import { useGetsSectionQuery } from "../../redux/api/sectionApiSlice";
 

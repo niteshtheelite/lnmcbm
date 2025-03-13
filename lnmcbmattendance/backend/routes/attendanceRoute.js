@@ -5,6 +5,7 @@ import {
   getAttendanceReport,
   getFilteredAttendance,
   getFilteredAttendanceByName,
+  getStudentAttendance,
 } from "../controllers/attendanceController.js";
 import {
   authorizeRoles,
@@ -21,15 +22,14 @@ router
     createAttendance
   );
 router.route("/getAttendancePercentage").get(getAttendancePercentage);
+router.route("/students").get(getStudentAttendance);
 
 router.route("/:id").get(getAttendancePercentage);
-router
-  .route("/filterAttendance")
-  .get(
-    isAuthenticatedUser,
-    authorizeRoles("admin", "teacher"),
-    getFilteredAttendance
-  );
+router.route("/").get(
+  // isAuthenticatedUser,
+  // authorizeRoles("admin", "teacher"),
+  getFilteredAttendance
+);
 router
   .route("/report")
   .get(
@@ -38,9 +38,5 @@ router
     getAttendanceReport
   );
 router.route("/filterAttendanceByName").get(getFilteredAttendanceByName);
-
-// router.route("/:id").get(getSectionById);
-// router.route("/:id").put(updateSection);
-// router.route("/:id").delete(deleteSection);
 
 export default router;

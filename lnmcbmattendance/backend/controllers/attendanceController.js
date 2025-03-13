@@ -2,6 +2,7 @@ import { Attendance } from "../models/attendanceSchema.js";
 import { Student } from "../models/studentSchema.js";
 import { Course } from "../models/courseSchema.js";
 import { Semester } from "../models/semesterSchema.js";
+import mongoose from "mongoose";
 
 const createAttendance = async (req, res) => {
   try {
@@ -170,28 +171,77 @@ const getFilteredAttendanceByName = async (req, res) => {
   }
 };
 
-const getFilteredAttendance = async (req, res) => {
-  try {
-    const { courseId, semesterId, sectionId } = req.query;
-    const query = {};
+// const getFilteredAttendance = async (req, res) => {
+//   try {
+//     console.log("🚀 Received Query Params:", req.query); // Debugging input
 
-    if (courseId) query.course = mongoose.Types.ObjectId(courseId);
-    if (semesterId) query.semester = mongoose.Types.ObjectId(semesterId);
-    if (sectionId) query.section = mongoose.Types.ObjectId(sectionId);
+//     const { courseId, semesterId, sectionId, studentId } = req.query;
+//     const query = {};
 
-    const students = await Attendance.find(query)
-      .populate("course")
-      .populate("semester")
-      .populate("section")
-      .sort({ rollNumber: 1 });
+//     // Ensure we are working with valid ObjectIds
+//     if (courseId) {
+//       if (mongoose.isValidObjectId(courseId)) {
+//         query.course = new mongoose.Types.ObjectId(courseId);
+//       } else {
+//         console.error("❌ Invalid courseId:", courseId);
+//         return res
+//           .status(400)
+//           .json({ message: `Invalid courseId: ${courseId}` });
+//       }
+//     }
 
-    res.json(students);
-  } catch (error) {
-    console.error("Error fetching attendance:", error);
-    res.status(500).json({ message: "Error fetching attendance" });
-  }
-};
+//     if (semesterId) {
+//       if (mongoose.isValidObjectId(semesterId)) {
+//         query.semester = new mongoose.Types.ObjectId(semesterId);
+//       } else {
+//         console.error("❌ Invalid semesterId:", semesterId);
+//         return res
+//           .status(400)
+//           .json({ message: `Invalid semesterId: ${semesterId}` });
+//       }
+//     }
 
+//     if (sectionId) {
+//       if (mongoose.isValidObjectId(sectionId)) {
+//         query.section = new mongoose.Types.ObjectId(sectionId);
+//       } else {
+//         console.error("❌ Invalid sectionId:", sectionId);
+//         return res
+//           .status(400)
+//           .json({ message: `Invalid sectionId: ${sectionId}` });
+//       }
+//     }
+
+//     if (studentId) {
+//       if (mongoose.isValidObjectId(studentId)) {
+//         query.students = {
+//           $elemMatch: { student: new mongoose.Types.ObjectId(studentId) },
+//         };
+//       } else {
+//         console.error("❌ Invalid studentId:", studentId);
+//         return res
+//           .status(400)
+//           .json({ message: `Invalid studentId: ${studentId}` });
+//       }
+//     }
+
+//     console.log("✅ MongoDB Query:", query); // Debugging output
+
+//     const attendanceRecords = await Attendance.find(query)
+//       .populate("course")
+//       .populate("semester")
+//       .populate("section")
+//       .populate("students.student") // Populate student details
+//       .sort({ date: -1 });
+
+//     res.json(attendanceRecords);
+//   } catch (error) {
+//     console.error("🔥 Error fetching attendance:", error);
+//     res
+//       .status(500)
+//       .json({ message: "Error fetching attendance", error: error.message });
+//   }
+// };
 export const getAttendanceReport = async (req, res) => {
   try {
     const { courseId, semesterId, sectionId } = req.body;
@@ -232,6 +282,165 @@ export const getAttendanceReport = async (req, res) => {
     res.status(200).json({ totalClasses, students: attendanceReport });
   } catch (error) {
     res.status(500).json({ message: "Server Error", error: error.message });
+  }
+};
+
+const getFilteredAttendance = async (req, res) => {
+  try {
+    console.log("🚀 Received Query Params:", req.query);
+
+    const { courseId, semesterId, sectionId } = req.query;
+    const query = {};
+
+    if (courseId) query.course = courseId;
+    if (semesterId) query.semester = semesterId;
+    if (sectionId) query.section = sectionId;
+    if (!courseId || !semesterId || !sectionId) {
+      return res.status(400).json({
+        message: "Missing required fields: courseId, semesterId, or sectionId.",
+      });
+    }
+
+    console.log("✅ MongoDB Query Params:", {
+      courseId,
+      semesterId,
+      sectionId,
+    });
+
+    // Fetch attendance records
+    const attendanceRecords = await Attendance.find(query)
+      .populate("course")
+      .populate("semester")
+      .populate("section")
+      .populate("students.student") // Populate student details
+      .sort({ date: -1 });
+
+    if (attendanceRecords.length === 0) {
+      return res.json({ message: "No attendance records found." });
+    }
+
+    // Calculate attendance percentage for each student
+    const studentAttendance = {};
+
+    attendanceRecords.forEach((record) => {
+      record.students.forEach(({ student, present }) => {
+        if (!student || !student._id) return;
+
+        const studentId = student._id.toString();
+
+        if (!studentAttendance[studentId]) {
+          studentAttendance[studentId] = {
+            studentId,
+            studentName: student.name || "Unknown",
+            rollNumber: student.rollNumber || "N/A", // Include roll number
+            totalClasses: 0,
+            presentCount: 0,
+          };
+        }
+
+        studentAttendance[studentId].totalClasses += 1;
+        if (present) {
+          studentAttendance[studentId].presentCount += 1;
+        }
+      });
+    });
+
+    // Convert to array and calculate percentages
+    const studentPercentages = Object.values(studentAttendance).map(
+      (student) => ({
+        studentId: student.studentId,
+        studentName: student.studentName,
+        rollNumber: student.rollNumber, // Include roll number
+        totalClasses: student.totalClasses,
+        presentCount: student.presentCount,
+        percentage:
+          student.totalClasses > 0
+            ? ((student.presentCount / student.totalClasses) * 100).toFixed(2) +
+              "%"
+            : "0%",
+      })
+    );
+
+    res.json(studentPercentages);
+  } catch (error) {
+    console.error("🔥 Error fetching attendance:", error);
+    res
+      .status(500)
+      .json({ message: "Error fetching attendance", error: error.message });
+  }
+};
+export const getStudentAttendance = async (req, res) => {
+  try {
+    const { course, semester, section } = req.query;
+
+    if (!course || !semester || !section) {
+      return res.status(400).json({ message: "Missing required parameters" });
+    }
+
+    // 🟢 Fetch all attendance records for the given course, semester, section
+    const attendanceRecords = await Attendance.find({
+      course,
+      semester,
+      section,
+    });
+
+    if (!attendanceRecords.length) {
+      return res.status(404).json({ message: "No attendance records found" });
+    }
+
+    // 🟢 Count how many times attendance was recorded (Total Sessions)
+    const totalSessions = attendanceRecords.length;
+
+    // 🟢 Create a map to store student attendance counts
+    let studentAttendanceMap = new Map();
+
+    attendanceRecords.forEach((attendance) => {
+      attendance.students.forEach(({ student, present }) => {
+        // ✅ Ensure the student field exists before processing
+        if (!student) return;
+
+        const studentId = student.toString(); // Convert ObjectId to String safely
+
+        if (!studentAttendanceMap.has(studentId)) {
+          studentAttendanceMap.set(studentId, { presentCount: 0 });
+        }
+
+        if (present) {
+          studentAttendanceMap.get(studentId).presentCount += 1;
+        }
+      });
+    });
+
+    // 🟢 Fetch student details
+    const studentIds = Array.from(studentAttendanceMap.keys());
+
+    if (studentIds.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "No students found for this attendance data" });
+    }
+
+    const students = await Student.find({ _id: { $in: studentIds } });
+
+    // 🟢 Prepare response
+    const response = students.map((student) => {
+      const attendanceInfo = studentAttendanceMap.get(student._id.toString());
+      const presentCount = attendanceInfo ? attendanceInfo.presentCount : 0;
+
+      return {
+        rollNumber: student.rollNumber,
+        name: student.name,
+        percentage:
+          totalSessions > 0
+            ? ((presentCount / totalSessions) * 100).toFixed(2)
+            : "0.00",
+      };
+    });
+
+    res.json(response);
+  } catch (error) {
+    console.error("Error fetching attendance:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
