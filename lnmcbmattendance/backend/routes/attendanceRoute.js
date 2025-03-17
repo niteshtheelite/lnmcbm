@@ -22,14 +22,14 @@ router
     createAttendance
   );
 router.route("/getAttendancePercentage").get(getAttendancePercentage);
-router.route("/students").get(getStudentAttendance);
+router.route("/").get(getStudentAttendance);
 
 router.route("/:id").get(getAttendancePercentage);
-router.route("/").get(
-  // isAuthenticatedUser,
-  // authorizeRoles("admin", "teacher"),
-  getFilteredAttendance
-);
+// router.route("/").get(
+//   // isAuthenticatedUser,
+//   // authorizeRoles("admin", "teacher"),
+//   getFilteredAttendance
+// );
 router
   .route("/report")
   .get(
