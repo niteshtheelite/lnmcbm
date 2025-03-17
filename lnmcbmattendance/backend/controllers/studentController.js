@@ -70,33 +70,29 @@ const updateStudent = async (req, res) => {
   try {
     const { rollNumber, name, course, section, semester } = req.body;
 
-    // Check if the roll number is already in use by another student
-    const existingStudent = await Student.findOne({
-      rollNumber,
-      course,
-      _id: { $ne: req.params.id },
-    });
-
-    if (existingStudent) {
+    // Ensure required fields are provided
+    if (!course || !semester) {
       return res
         .status(400)
-        .json({ message: "Roll number already exists for this course" });
+        .json({ message: "Course and Semester are required." });
     }
 
-    // Update the student
     const updatedStudent = await Student.findByIdAndUpdate(
       req.params.id,
       { rollNumber, name, course, section, semester },
-      { new: true, runValidators: true }
+      {
+        new: true,
+        runValidators: true,
+      }
     );
 
     if (!updatedStudent) {
-      return res.status(404).json({ message: "Student not founds" });
+      return res.status(404).json({ message: "Student not found" });
     }
 
     res.status(200).json(updatedStudent);
   } catch (error) {
-    console.error(error);
+    console.error("Update Student Error:", error);
     res
       .status(500)
       .json({ message: "Error updating student", error: error.message });
