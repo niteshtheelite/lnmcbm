@@ -91,7 +91,7 @@ const updateStudent = async (req, res) => {
     );
 
     if (!updatedStudent) {
-      return res.status(404).json({ message: "Student not found" });
+      return res.status(404).json({ message: "Student not founds" });
     }
 
     res.status(200).json(updatedStudent);
