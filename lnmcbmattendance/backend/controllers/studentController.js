@@ -65,17 +65,29 @@ const getFilterStudent = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
 const updateStudent = async (req, res) => {
   try {
-    const { rollNumber, name, department, session, semester } = req.body;
+    const { rollNumber, name, course, section, semester } = req.body;
 
+    // Check if the roll number is already in use by another student
+    const existingStudent = await Student.findOne({
+      rollNumber,
+      course,
+      _id: { $ne: req.params.id },
+    });
+
+    if (existingStudent) {
+      return res
+        .status(400)
+        .json({ message: "Roll number already exists for this course" });
+    }
+
+    // Update the student
     const updatedStudent = await Student.findByIdAndUpdate(
       req.params.id,
-      { rollNumber, name, course, session, semester },
-      {
-        new: true,
-        runValidators: true,
-      }
+      { rollNumber, name, course, section, semester },
+      { new: true, runValidators: true }
     );
 
     if (!updatedStudent) {
@@ -90,16 +102,25 @@ const updateStudent = async (req, res) => {
       .json({ message: "Error updating student", error: error.message });
   }
 };
+
 const deleteStudent = async (req, res) => {
   try {
-    const Students = await Student.findByIdAndDelete(req.params.id);
-    if (!Students) {
+    // Find student first
+    const student = await Student.findById(req.params.id);
+
+    if (!student) {
       return res.status(404).json({ message: "Student not found" });
     }
+
+    // Delete the student
+    await Student.findByIdAndDelete(req.params.id);
+
     res.status(200).json({ message: "Student deleted successfully" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Error deleting student", error: err });
+  } catch (error) {
+    console.error(error);
+    res
+      .status(500)
+      .json({ message: "Error deleting student", error: error.message });
   }
 };
 
