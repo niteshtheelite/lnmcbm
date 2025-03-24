@@ -197,6 +197,36 @@ const promoteAllStudents = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// ✅ Get Subjects Based on Course
+export const getSubjectsByCourse = async (req, res) => {
+  try {
+    const { courseId } = req.params;
+
+    // ⚡️ Validate Course ID
+    const courseExists = await Course.findById(courseId);
+    if (!courseExists) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+
+    // ✅ Get All Subjects for the Course
+    const subjects = await Subject.find({ course: courseId });
+
+    res.status(200).json({
+      success: true,
+      count: subjects.length,
+      data: subjects,
+    });
+  } catch (error) {
+    console.error("Error fetching subjects:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching subjects",
+      error: error.message,
+    });
+  }
+};
+
 export {
   createStudent,
   getStudents,

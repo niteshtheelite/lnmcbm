@@ -58,18 +58,17 @@ void displayQueue(struct queue *q)
 }
 
 int main()
-{ // Changed void main() to int main()
+{
     struct queue *q = createQueue();
     int n, value;
 
     printf("Enter the number of elements you want to enqueue (max %d): ", MAX);
     scanf("%d", &n);
 
-    // Ensure the number of elements does not exceed MAX
     if (n > MAX)
     {
         printf("Cannot enqueue more than %d elements.\n", MAX);
-        return 1; // Exit with an error code
+        return 1;
     }
 
     for (int i = 0; i < n; i++)
@@ -80,6 +79,6 @@ int main()
     }
 
     displayQueue(q);
-    free(q);  // Free allocated memory
-    return 0; // Return statement for main
+    free(q);
+    return 0;
 }
