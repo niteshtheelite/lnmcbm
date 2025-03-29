@@ -7,7 +7,8 @@ import {
 import {
   createSubject,
   deleteSubject,
-  getSubjects,
+  getAllSubjects,
+  getSubjectsByCourseAndSemester,
   updateSubject,
 } from "../controllers/subjectController.js";
 
@@ -17,8 +18,15 @@ router
   .route("/createSubject")
   .post(isAuthenticatedUser, authorizeRoles("admin"), createSubject);
 router
+  .route("/getSubjectsByCourseAndSemester")
+  .get(
+    isAuthenticatedUser,
+    authorizeRoles("admin"),
+    getSubjectsByCourseAndSemester
+  );
+router
   .route("/allSubject")
-  .get(isAuthenticatedUser, authorizeRoles("admin"), getSubjects);
+  .get(isAuthenticatedUser, authorizeRoles("admin"), getAllSubjects);
 router
   .route("/:id")
   .put(isAuthenticatedUser, authorizeRoles("admin"), updateSubject);

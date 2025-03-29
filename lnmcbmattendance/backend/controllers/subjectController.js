@@ -1,153 +1,183 @@
 import { Subject } from "../models/subjectSchema.js";
-import { Course } from "../models/courseSchema.js";
 
-// 📚 1. Create a New Subject
 export const createSubject = async (req, res) => {
   try {
-    const { name, course } = req.body;
-
-    // ⚡️ Check if Course Exists
-    const courseExists = await Course.findById(course);
-    if (!courseExists) {
-      return res.status(404).json({ message: "Course not found" });
-    }
-
-    // ✅ Check if Subject Already Exists for the Same Course
-    const existingSubject = await Subject.findOne({ name, course });
-    if (existingSubject) {
+    const { name, course, semester } = req.body;
+    console.log(req.body);
+    // Validate required fields
+    if (!name || !course || !semester) {
       return res.status(400).json({
-        message:
-          "Subject with this name already exists for the selected course.",
+        success: false,
+        message: "Name, course, and semester are required",
       });
     }
 
-    // ✅ Create New Subject
-    const subject = await Subject.create({ name, course });
+    // Check if subject with the same name, course, and semester already exists
+    const existingSubject = await Subject.findOne({ name, course, semester });
+    if (existingSubject) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Subject with the same name, course, and semester already exists",
+      });
+    }
 
+    // Create new subject
+    const subject = await Subject.create({
+      name,
+      course,
+      semester,
+    });
+
+    // Return the newly created subject
     res.status(201).json({
       success: true,
-      message: "Subject added successfully!",
       data: subject,
     });
   } catch (error) {
-    console.error("Error adding subject:", error.message);
+    console.error(error.message);
     res.status(500).json({
       success: false,
-      message: "Error adding subject",
-      error: error.message,
+      message: "Server Error",
     });
   }
 };
 
-//
-// 🎯 1. Get All Subjects or Subject by ID
-//
-export const getSubjects = async (req, res) => {
+export const getSubjectsByCourseAndSemester = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { courseId, semesterId } = req.query;
 
-    // ✅ If ID is provided, get a single subject
-    if (id) {
-      const subject = await Subject.findById(id).populate("course", "name");
-      if (!subject) {
-        return res.status(404).json({ message: "Subject not found" });
-      }
-      return res.status(200).json({ success: true, data: subject });
+    // Validate if both course and semester are provided
+    if (!courseId || !semesterId) {
+      return res.status(400).json({
+        success: false,
+        message: "Both courseId and semesterId are required",
+      });
     }
 
-    // ✅ Get All Subjects if no ID is provided
-    const subjects = await Subject.find().populate("course", "name");
+    // Fetch subjects matching the course and semester
+    const subjects = await Subject.find({
+      course: courseId,
+      semester: semesterId,
+    }).populate("course semester");
+
+    // Check if subjects exist
+    if (subjects.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No subjects found for the selected course and semester",
+      });
+    }
+
+    // Return subjects if found
     res.status(200).json({
       success: true,
       count: subjects.length,
       data: subjects,
     });
   } catch (error) {
-    console.error("Error fetching subject(s):", error.message);
+    console.error(error.message);
     res.status(500).json({
       success: false,
-      message: "Error fetching subject(s)",
-      error: error.message,
+      message: "Server Error",
     });
   }
 };
 
-//
-// 🎯 2. Update Subject by ID
-//
-export const updateSubject = async (req, res) => {
+export const getAllSubjects = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { name, course } = req.body;
+    // Fetch all subjects and populate course and semester details
+    const subjects = await Subject.find().populate("course semester");
 
-    // ✅ Check if Course Exists
-    const courseExists = await Course.findById(course);
-    if (!courseExists) {
-      return res.status(404).json({ message: "Course not found" });
-    }
-
-    // ✅ Check for Duplicate Subject with Same Name & Course
-    const duplicateSubject = await Subject.findOne({
-      name,
-      course,
-      _id: { $ne: id }, // Exclude current subject
-    });
-    if (duplicateSubject) {
-      return res.status(400).json({
-        message:
-          "Subject with this name already exists for the selected course.",
+    // Check if subjects exist
+    if (!subjects || subjects.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No subjects found",
       });
-    }
-
-    // ✅ Update Subject
-    const updatedSubject = await Subject.findByIdAndUpdate(id, req.body, {
-      new: true,
-      runValidators: true,
-    });
-
-    if (!updatedSubject) {
-      return res.status(404).json({ message: "Subject not found" });
     }
 
     res.status(200).json({
       success: true,
-      message: "Subject updated successfully!",
-      data: updatedSubject,
+      count: subjects.length,
+      data: subjects,
     });
   } catch (error) {
-    console.error("Error updating subject:", error.message);
+    console.error(error.message);
     res.status(500).json({
       success: false,
-      message: "Error updating subject",
-      error: error.message,
+      message: "Server Error",
     });
   }
 };
 
-//
-// 🎯 3. Delete Subject by ID
-//
+export const updateSubject = async (req, res) => {
+  try {
+    const { name, course, semester } = req.body;
+    const { id } = req.params;
+
+    // Validate required fields
+    if (!name || !course || !semester) {
+      return res.status(400).json({
+        success: false,
+        message: "Name, course, and semester are required",
+      });
+    }
+
+    // Check if subject exists
+    const subject = await Subject.findById(id);
+    if (!subject) {
+      return res.status(404).json({
+        success: false,
+        message: "Subject not found",
+      });
+    }
+
+    // Update subject details
+    subject.name = name;
+    subject.course = course;
+    subject.semester = semester;
+
+    const updatedSubject = await subject.save();
+
+    res.status(200).json({
+      success: true,
+      data: updatedSubject,
+    });
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
+  }
+};
+
 export const deleteSubject = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // ✅ Delete Subject
-    const deletedSubject = await Subject.findByIdAndDelete(id);
-
-    if (!deletedSubject) {
-      return res.status(404).json({ message: "Subject not found" });
+    // Check if subject exists
+    const subject = await Subject.findById(id);
+    if (!subject) {
+      return res.status(404).json({
+        success: false,
+        message: "Subject not found",
+      });
     }
+
+    // Delete the subject
+    await subject.deleteOne();
 
     res.status(200).json({
       success: true,
-      message: "Subject deleted successfully!",
+      message: "Subject deleted successfully",
     });
   } catch (error) {
-    console.error("Error deleting subject:", error.message);
+    console.error(error.message);
     res.status(500).json({
       success: false,
-      message: "Error deleting subject",
-      error: error.message,
+      message: "Server Error",
     });
   }
 };

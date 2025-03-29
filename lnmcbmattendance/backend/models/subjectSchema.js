@@ -11,6 +11,11 @@ const subjectSchema = new Schema(
       ref: "Course", // Link to Course Model
       required: true,
     },
+    semester: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Semester",
+      required: true,
+    },
   },
   {
     timestamps: true,
