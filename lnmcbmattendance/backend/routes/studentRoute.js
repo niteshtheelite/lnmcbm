@@ -7,6 +7,7 @@ import {
   getStudents,
   promoteAllStudents,
   updateStudent,
+  upgradeStudentSemester,
 } from "../controllers/studentController.js";
 import {
   authorizeRoles,
@@ -23,6 +24,7 @@ router.route("/filterStudent").get(getFilterStudent);
 router.route("/selectStudents").get(getStudentOnSelection);
 router.route("/:id").put(updateStudent);
 router.route("/:id").delete(deleteStudent);
-router.route("/promote").get(promoteAllStudents);
+router.route("/promote").patch(promoteAllStudents);
+router.route("/:studentId/upgrade-semester").put(upgradeStudentSemester);
 
 export default router;

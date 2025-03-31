@@ -9,11 +9,7 @@ const studentSchema = new Schema(
       ref: "Course",
       required: true,
     },
-    subject: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Subject",
-      required: true,
-    },
+
     section: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Section",

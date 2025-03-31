@@ -2,6 +2,7 @@ import { Attendance } from "../models/attendanceSchema.js";
 import { Student } from "../models/studentSchema.js";
 import { Course } from "../models/courseSchema.js";
 import { Semester } from "../models/semesterSchema.js";
+import { Subject } from "../models/subjectSchema.js";
 import mongoose from "mongoose";
 
 const createAttendance = async (req, res) => {
@@ -10,9 +11,17 @@ const createAttendance = async (req, res) => {
       return res.status(401).json({ message: "Unauthorized: No user found" });
     }
 
-    const { courseId, semesterId, sectionId, durationId, students } = req.body;
+    const { courseId, semesterId, sectionId, subjectId, durationId, students } =
+      req.body;
 
-    if (!courseId || !semesterId || !sectionId || !durationId || !students) {
+    if (
+      !courseId ||
+      !semesterId ||
+      !subjectId ||
+      !sectionId ||
+      !durationId ||
+      !students
+    ) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
@@ -27,6 +36,7 @@ const createAttendance = async (req, res) => {
     const existingAttendance = await Attendance.findOne({
       course: courseId,
       semester: semesterId,
+      subject: subjectId,
       section: sectionId,
       duration: durationId,
       date: { $gte: startOfDay, $lt: endOfDay }, // Date range filter
@@ -49,6 +59,7 @@ const createAttendance = async (req, res) => {
       user: req.user._id,
       course: courseId,
       semester: semesterId,
+      subject: subjectId,
       section: sectionId,
       duration: durationId,
       students: formattedStudents,
@@ -441,6 +452,136 @@ export const getStudentAttendance = async (req, res) => {
   } catch (error) {
     console.error("Error fetching attendance:", error);
     res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+// ✅ Get subject-wise attendance percentage for all students filtered by course, semester, and section
+export const getSubjectWiseAttendanceForAll = async (req, res) => {
+  try {
+    const { courseId, semesterId, sectionId } = req.params;
+
+    console.log({
+      courseId,
+      semesterId,
+      sectionId,
+    });
+
+    // ✅ Find attendance records that match course, semester, and section
+    const attendanceRecords = await Attendance.find({
+      course: courseId,
+      semester: semesterId,
+      section: sectionId,
+    })
+      .populate("subject") // Populate subject details
+      .populate({
+        path: "students.student",
+        model: "Student", // ✅ Force reference to Student model
+      })
+      .exec();
+
+    attendanceRecords.forEach((record) => {
+      record.students.forEach((s) => {
+        console.log("Student Populated:", s.student); // Should show populated data
+        if (!s.student) {
+          console.warn(`Invalid Student for Record ID: ${record._id}`);
+        }
+      });
+    });
+    // ✅ Check if attendance records exist
+    if (!attendanceRecords || attendanceRecords.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "No attendance records found for these filters." });
+    }
+
+    // ✅ Map to store subject-wise attendance for all students
+    const subjectAttendanceMap = {};
+
+    // ✅ Process each attendance record
+    attendanceRecords.forEach((record) => {
+      const subjectIdStr = record?.subject?._id?.toString();
+      if (!subjectIdStr) {
+        console.warn("Invalid subject found, skipping record...");
+        return; // Skip record if subject is invalid
+      }
+
+      // ✅ Initialize subject-wise attendance map if not present
+      if (!subjectAttendanceMap[subjectIdStr]) {
+        subjectAttendanceMap[subjectIdStr] = {
+          subjectName: record.subject.name,
+          studentAttendance: {},
+          totalClasses: 0,
+        };
+      }
+
+      // ✅ Increment total classes for this subject
+      subjectAttendanceMap[subjectIdStr].totalClasses++;
+
+      // ✅ Process each student in the attendance record
+      record.students.forEach((s) => {
+        // Check if student is populated correctly
+        const studentIdStr = s?.student?._id?.toString();
+        if (!studentIdStr) {
+          console.warn("Student ID is missing or invalid. Skipping...");
+          return; // Skip this record if student is invalid
+        }
+
+        // ✅ Initialize student-wise attendance if not present
+        if (
+          !subjectAttendanceMap[subjectIdStr].studentAttendance[studentIdStr]
+        ) {
+          subjectAttendanceMap[subjectIdStr].studentAttendance[studentIdStr] = {
+            attended: 0,
+          };
+        }
+
+        // ✅ Increment attendance if present
+        if (s.present === true) {
+          subjectAttendanceMap[subjectIdStr].studentAttendance[studentIdStr]
+            .attended++;
+        }
+      });
+    });
+
+    // ✅ Generate subject-wise percentage for all students
+    const subjectWisePercentages = Object.keys(subjectAttendanceMap).map(
+      (subjectId) => {
+        const { subjectName, studentAttendance, totalClasses } =
+          subjectAttendanceMap[subjectId];
+
+        // ✅ Generate student-wise percentages
+        const studentPercentages = Object.keys(studentAttendance).map(
+          (studentId) => {
+            const { attended } = studentAttendance[studentId];
+            const percentage = (attended / totalClasses) * 100;
+
+            return {
+              studentId,
+              subjectId,
+              subjectName,
+              totalClasses,
+              attended,
+              percentage: percentage.toFixed(2) + "%", // Format to 2 decimal places
+            };
+          }
+        );
+
+        return {
+          subjectId,
+          subjectName,
+          totalClasses,
+          studentPercentages,
+        };
+      }
+    );
+
+    // ✅ Return the calculated percentages
+    return res.status(200).json(subjectWisePercentages);
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({
+      message: "Error calculating subject-wise attendance percentage",
+    });
   }
 };
 

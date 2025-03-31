@@ -3,7 +3,7 @@ import { Subject } from "../models/subjectSchema.js";
 export const createSubject = async (req, res) => {
   try {
     const { name, course, semester } = req.body;
-    console.log(req.body);
+
     // Validate required fields
     if (!name || !course || !semester) {
       return res.status(400).json({

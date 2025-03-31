@@ -1,5 +1,5 @@
 import { Student } from "../models/studentSchema.js";
-
+import { Semester } from "../models/semesterSchema.js";
 const createStudent = async (req, res) => {
   try {
     // Extract student data from the request body
@@ -195,6 +195,96 @@ const promoteAllStudents = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+export const upgradeStudentSemester = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { newSemesterId } = req.body;
+
+    // Validate input
+    if (!studentId) {
+      return res.status(400).json({
+        success: false,
+        message: "Student ID is required",
+      });
+    }
+
+    // Fetch the student
+    const student = await Student.findById(studentId)
+      .populate("course", "name")
+      .populate("semester", "name");
+
+    // Log the student after it's fetched
+    console.log("Fetched Student:", student);
+
+    // Check if the student exists
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student not found",
+        studentId,
+      });
+    }
+
+    // 🛑 Defensive check if course and semester exist
+    if (!student.course || !student.semester) {
+      return res.status(400).json({
+        success: false,
+        message: "Course and Semester are required.",
+      });
+    }
+
+    // 📚 Get the current semester name (as a number)
+    const currentSemesterNumber = student.semester.name;
+
+    // 🔎 Find the next semester by incrementing `name` by 1
+    const nextSemester = await Semester.findOne({
+      name: currentSemesterNumber + 1,
+    });
+
+    // 🛑 If no next semester found, student is already in the final semester
+    if (!nextSemester) {
+      return res.status(400).json({
+        success: false,
+        message: "Student is already in the final semester",
+        currentSemester: {
+          _id: student.semester._id,
+          name: student.semester.name,
+        },
+      });
+    }
+
+    // 🔄 Upgrade to the next semester
+    const updatedStudent = await Student.findByIdAndUpdate(
+      studentId,
+      { semester: nextSemester._id },
+      { new: true, runValidators: true }
+    )
+      .populate("course", "name")
+      .populate("semester", "name");
+
+    res.status(200).json({
+      success: true,
+      message: "Semester upgraded successfully",
+      student: updatedStudent,
+      previousSemester: {
+        _id: student.semester._id,
+        name: student.semester.name,
+      },
+      nextSemester: {
+        _id: nextSemester._id,
+        name: nextSemester.name,
+      },
+    });
+  } catch (error) {
+    console.error("Error upgrading semester:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
   }
 };
 
