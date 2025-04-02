@@ -6,7 +6,7 @@ import {
   getFilteredAttendance,
   getFilteredAttendanceByName,
   getStudentAttendance,
-  getSubjectWiseAttendanceForAll,
+  getStudentAttendanceSubjectWise,
 } from "../controllers/attendanceController.js";
 import {
   authorizeRoles,
@@ -23,12 +23,8 @@ router
     createAttendance
   );
 router.route("/getAttendancePercentage").get(getAttendancePercentage);
-router
-  .route(
-    "/getSubjectWiseAttendancePercentage/course/:courseId/semester/:semesterId/section/:sectionId"
-  )
-  .get(getSubjectWiseAttendanceForAll);
 
+router.route("/subject").get(getStudentAttendanceSubjectWise);
 router.route("/").get(getStudentAttendance);
 
 router.route("/:id").get(getAttendancePercentage);

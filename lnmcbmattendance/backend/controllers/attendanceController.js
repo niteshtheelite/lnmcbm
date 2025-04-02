@@ -4,6 +4,7 @@ import { Course } from "../models/courseSchema.js";
 import { Semester } from "../models/semesterSchema.js";
 import { Subject } from "../models/subjectSchema.js";
 import mongoose from "mongoose";
+import { ObjectId } from "mongodb";
 
 const createAttendance = async (req, res) => {
   try {
@@ -455,133 +456,94 @@ export const getStudentAttendance = async (req, res) => {
   }
 };
 
-// ✅ Get subject-wise attendance percentage for all students filtered by course, semester, and section
-export const getSubjectWiseAttendanceForAll = async (req, res) => {
+export const getStudentAttendanceSubjectWise = async (req, res) => {
   try {
-    const { courseId, semesterId, sectionId } = req.params;
+    const { courseId, semesterId, sectionId } = req.query;
 
-    console.log({
-      courseId,
-      semesterId,
-      sectionId,
-    });
-
-    // ✅ Find attendance records that match course, semester, and section
-    const attendanceRecords = await Attendance.find({
-      course: courseId,
-      semester: semesterId,
-      section: sectionId,
-    })
-      .populate("subject") // Populate subject details
-      .populate({
-        path: "students.student",
-        model: "Student", // ✅ Force reference to Student model
-      })
-      .exec();
-
-    attendanceRecords.forEach((record) => {
-      record.students.forEach((s) => {
-        console.log("Student Populated:", s.student); // Should show populated data
-        if (!s.student) {
-          console.warn(`Invalid Student for Record ID: ${record._id}`);
-        }
-      });
-    });
-    // ✅ Check if attendance records exist
-    if (!attendanceRecords || attendanceRecords.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "No attendance records found for these filters." });
+    if (!courseId || !semesterId || !sectionId) {
+      return res.status(400).json({ message: "Missing parameters" });
     }
 
-    // ✅ Map to store subject-wise attendance for all students
-    const subjectAttendanceMap = {};
+    const courseObjId = new mongoose.Types.ObjectId(courseId);
+    const semesterObjId = new mongoose.Types.ObjectId(semesterId);
+    const sectionObjId = new mongoose.Types.ObjectId(sectionId);
 
-    // ✅ Process each attendance record
+    const attendanceRecords = await Attendance.find({
+      course: courseObjId,
+      semester: semesterObjId,
+      section: sectionObjId,
+    }).lean();
+
+    if (!attendanceRecords.length) {
+      return res.status(404).json({ message: "No attendance records found." });
+    }
+
+    const attendanceMap = {};
+
     attendanceRecords.forEach((record) => {
-      const subjectIdStr = record?.subject?._id?.toString();
-      if (!subjectIdStr) {
-        console.warn("Invalid subject found, skipping record...");
-        return; // Skip record if subject is invalid
-      }
+      const subjectId = record.subject.toString();
 
-      // ✅ Initialize subject-wise attendance map if not present
-      if (!subjectAttendanceMap[subjectIdStr]) {
-        subjectAttendanceMap[subjectIdStr] = {
-          subjectName: record.subject.name,
-          studentAttendance: {},
-          totalClasses: 0,
-        };
-      }
+      record.students.forEach((studentData) => {
+        const studentId = studentData.student.toString();
 
-      // ✅ Increment total classes for this subject
-      subjectAttendanceMap[subjectIdStr].totalClasses++;
-
-      // ✅ Process each student in the attendance record
-      record.students.forEach((s) => {
-        // Check if student is populated correctly
-        const studentIdStr = s?.student?._id?.toString();
-        if (!studentIdStr) {
-          console.warn("Student ID is missing or invalid. Skipping...");
-          return; // Skip this record if student is invalid
+        if (!attendanceMap[studentId]) {
+          attendanceMap[studentId] = {};
         }
 
-        // ✅ Initialize student-wise attendance if not present
-        if (
-          !subjectAttendanceMap[subjectIdStr].studentAttendance[studentIdStr]
-        ) {
-          subjectAttendanceMap[subjectIdStr].studentAttendance[studentIdStr] = {
-            attended: 0,
-          };
+        if (!attendanceMap[studentId][subjectId]) {
+          attendanceMap[studentId][subjectId] = { total: 0, attended: 0 };
         }
 
-        // ✅ Increment attendance if present
-        if (s.present === true) {
-          subjectAttendanceMap[subjectIdStr].studentAttendance[studentIdStr]
-            .attended++;
+        attendanceMap[studentId][subjectId].total += 1;
+        if (studentData.present) {
+          attendanceMap[studentId][subjectId].attended += 1;
         }
       });
     });
 
-    // ✅ Generate subject-wise percentage for all students
-    const subjectWisePercentages = Object.keys(subjectAttendanceMap).map(
-      (subjectId) => {
-        const { subjectName, studentAttendance, totalClasses } =
-          subjectAttendanceMap[subjectId];
+    // Get student IDs
+    const studentIds = Object.keys(attendanceMap);
+    console.log("Fetched Student IDs:", studentIds);
 
-        // ✅ Generate student-wise percentages
-        const studentPercentages = Object.keys(studentAttendance).map(
-          (studentId) => {
-            const { attended } = studentAttendance[studentId];
-            const percentage = (attended / totalClasses) * 100;
+    // Fetch student details
+    const students = await Student.find({
+      _id: { $in: studentIds.map((id) => new mongoose.Types.ObjectId(id)) },
+    }).lean();
+    console.log("Fetched Students:", students);
 
-            return {
-              studentId,
-              subjectId,
-              subjectName,
-              totalClasses,
-              attended,
-              percentage: percentage.toFixed(2) + "%", // Format to 2 decimal places
-            };
-          }
+    // Fetch subject details
+    const subjects = await Subject.find().lean();
+
+    const attendanceData = [];
+
+    for (const studentId of studentIds) {
+      const student = students.find((stu) => stu._id.toString() === studentId);
+      console.log(`Processing student ID: ${studentId}, Found:`, student);
+
+      for (const subjectId of Object.keys(attendanceMap[studentId])) {
+        const { total, attended } = attendanceMap[studentId][subjectId];
+        const subject = subjects.find(
+          (sub) => sub._id.toString() === subjectId
         );
 
-        return {
+        attendanceData.push({
+          studentId,
+          studentName: student ? student.name : "**Not Found**", // Changed to debug issue
           subjectId,
-          subjectName,
-          totalClasses,
-          studentPercentages,
-        };
+          subjectName: subject ? subject.name : "Unknown",
+          totalClasses: total,
+          attendedClasses: attended,
+          attendancePercentage:
+            total === 0 ? 0 : Math.round((attended / total) * 100),
+        });
       }
-    );
+    }
 
-    // ✅ Return the calculated percentages
-    return res.status(200).json(subjectWisePercentages);
+    console.log("Final Attendance Data:", attendanceData);
+    res.json(attendanceData);
   } catch (error) {
-    console.error("Error:", error);
-    res.status(500).json({
-      message: "Error calculating subject-wise attendance percentage",
-    });
+    console.error("Error fetching attendance data:", error);
+    res.status(500).json({ message: "Server Error", error: error.message });
   }
 };
 
