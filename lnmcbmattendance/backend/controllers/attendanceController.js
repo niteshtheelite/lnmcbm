@@ -529,8 +529,10 @@ export const getStudentAttendanceSubjectWise = async (req, res) => {
         attendanceData.push({
           studentId,
           studentName: student ? student.name : "**Not Found**", // Changed to debug issue
+          rollNumber: student ? student.rollNumber : "**Not Found**",
           subjectId,
           subjectName: subject ? subject.name : "Unknown",
+
           totalClasses: total,
           attendedClasses: attended,
           attendancePercentage:

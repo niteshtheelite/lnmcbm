@@ -1,0 +1,1676 @@
+Directory structure:
+└── controllers/
+    ├── attendanceController.js
+    ├── authController.js
+    ├── courseController.js
+    ├── durationController.js
+    ├── sectionController.js
+    ├── semesterController.js
+    ├── studentController.js
+    └── subjectController.js
+
+================================================
+File: attendanceController.js
+================================================
+import { Attendance } from "../models/attendanceSchema.js";
+import { Student } from "../models/studentSchema.js";
+import { Course } from "../models/courseSchema.js";
+import { Semester } from "../models/semesterSchema.js";
+import { Subject } from "../models/subjectSchema.js";
+import mongoose from "mongoose";
+import { ObjectId } from "mongodb";
+
+const createAttendance = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized: No user found" });
+    }
+
+    const { courseId, semesterId, sectionId, subjectId, durationId, students } =
+      req.body;
+
+    if (
+      !courseId ||
+      !semesterId ||
+      !subjectId ||
+      !sectionId ||
+      !durationId ||
+      !students
+    ) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    // ✅ Get today's date
+    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
+
+    // ✅ Define the start and end of the day
+    const startOfDay = new Date(today); // Midnight (00:00:00)
+    const endOfDay = new Date(today + "T23:59:59.999Z"); // End of day (23:59:59.999)
+
+    // ✅ Prevent Duplicate Attendance (same day)
+    const existingAttendance = await Attendance.findOne({
+      course: courseId,
+      semester: semesterId,
+      subject: subjectId,
+      section: sectionId,
+      duration: durationId,
+      date: { $gte: startOfDay, $lt: endOfDay }, // Date range filter
+    });
+
+    if (existingAttendance) {
+      return res.status(400).json({
+        message: "Attendance for this duration has already been taken today!",
+      });
+    }
+
+    // ✅ Format Students Array
+    const formattedStudents = students.map((item) => ({
+      student: item.studentId,
+      present: item.present,
+    }));
+
+    // ✅ Save Attendance
+    const attendance = new Attendance({
+      user: req.user._id,
+      course: courseId,
+      semester: semesterId,
+      subject: subjectId,
+      section: sectionId,
+      duration: durationId,
+      students: formattedStudents,
+      date: new Date(),
+    });
+
+    await attendance.save();
+    res.status(201).json({ message: "Attendance marked successfully" });
+  } catch (error) {
+    console.error("Error marking attendance:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ✅ GET ATTENDANCE PERCENTAGE OF STUDENT
+const getAttendancePercentage = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ message: "Student ID is required" });
+    }
+
+    // ✅ Find All Attendance Records For This Student
+    const attendanceRecords = await Attendance.find({
+      "students.student": id,
+    });
+
+    if (attendanceRecords.length === 0) {
+      return res.status(404).json({ message: "No attendance record found" });
+    }
+
+    // ✅ Calculate Present & Total Days
+    let totalClasses = 0;
+    let presentClasses = 0;
+
+    attendanceRecords.forEach((attendance) => {
+      attendance.students.forEach((studentRecord) => {
+        if (String(studentRecord.student) === String(id)) {
+          totalClasses++;
+          if (studentRecord.present) {
+            presentClasses++;
+          }
+        }
+      });
+    });
+
+    // ✅ Calculate Percentage
+    const percentage = (presentClasses / totalClasses) * 100;
+
+    res.status(200).json({
+      totalClasses,
+      presentClasses,
+      percentage: `${percentage.toFixed(2)}%`,
+    });
+  } catch (error) {
+    console.error("Error fetching attendance:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const getFilteredAttendanceByName = async (req, res) => {
+  try {
+    const { courseName, semesterName } = req.query;
+
+    if (!courseName || !semesterName) {
+      return res
+        .status(400)
+        .json({ message: "Course Name and Semester Name are required" });
+    }
+
+    // ✅ Find Course ID Based on Course Name
+    const course = await Course.findOne({ name: courseName });
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+
+    // ✅ Find Semester ID Based on Semester Name
+    const semester = await Semester.findOne({ name: semesterName });
+    if (!semester) {
+      return res.status(404).json({ message: "Semester not found" });
+    }
+
+    // ✅ Fetch Attendance Based On Filters
+    const attendanceRecords = await Attendance.find({
+      course: course._id,
+      semester: semester._id,
+    });
+
+    if (attendanceRecords.length === 0) {
+      return res.status(404).json({ message: "No attendance record found" });
+    }
+
+    // ✅ Calculate Total Classes, Present Classes
+    let totalClasses = 0;
+    let presentClasses = 0;
+
+    attendanceRecords.forEach((attendance) => {
+      attendance.students.forEach((studentRecord) => {
+        totalClasses++;
+        if (studentRecord.present) {
+          presentClasses++;
+        }
+      });
+    });
+
+    // ✅ Calculate Attendance Percentage
+    const percentage = ((presentClasses / totalClasses) * 100).toFixed(2);
+
+    res.status(200).json({
+      courseName,
+      semesterName,
+      totalClasses,
+      presentClasses,
+      percentage,
+    });
+  } catch (error) {
+    console.error("Error fetching attendance:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// const getFilteredAttendance = async (req, res) => {
+//   try {
+//     console.log("🚀 Received Query Params:", req.query); // Debugging input
+
+//     const { courseId, semesterId, sectionId, studentId } = req.query;
+//     const query = {};
+
+//     // Ensure we are working with valid ObjectIds
+//     if (courseId) {
+//       if (mongoose.isValidObjectId(courseId)) {
+//         query.course = new mongoose.Types.ObjectId(courseId);
+//       } else {
+//         console.error("❌ Invalid courseId:", courseId);
+//         return res
+//           .status(400)
+//           .json({ message: `Invalid courseId: ${courseId}` });
+//       }
+//     }
+
+//     if (semesterId) {
+//       if (mongoose.isValidObjectId(semesterId)) {
+//         query.semester = new mongoose.Types.ObjectId(semesterId);
+//       } else {
+//         console.error("❌ Invalid semesterId:", semesterId);
+//         return res
+//           .status(400)
+//           .json({ message: `Invalid semesterId: ${semesterId}` });
+//       }
+//     }
+
+//     if (sectionId) {
+//       if (mongoose.isValidObjectId(sectionId)) {
+//         query.section = new mongoose.Types.ObjectId(sectionId);
+//       } else {
+//         console.error("❌ Invalid sectionId:", sectionId);
+//         return res
+//           .status(400)
+//           .json({ message: `Invalid sectionId: ${sectionId}` });
+//       }
+//     }
+
+//     if (studentId) {
+//       if (mongoose.isValidObjectId(studentId)) {
+//         query.students = {
+//           $elemMatch: { student: new mongoose.Types.ObjectId(studentId) },
+//         };
+//       } else {
+//         console.error("❌ Invalid studentId:", studentId);
+//         return res
+//           .status(400)
+//           .json({ message: `Invalid studentId: ${studentId}` });
+//       }
+//     }
+
+//     console.log("✅ MongoDB Query:", query); // Debugging output
+
+//     const attendanceRecords = await Attendance.find(query)
+//       .populate("course")
+//       .populate("semester")
+//       .populate("section")
+//       .populate("students.student") // Populate student details
+//       .sort({ date: -1 });
+
+//     res.json(attendanceRecords);
+//   } catch (error) {
+//     console.error("🔥 Error fetching attendance:", error);
+//     res
+//       .status(500)
+//       .json({ message: "Error fetching attendance", error: error.message });
+//   }
+// };
+export const getAttendanceReport = async (req, res) => {
+  try {
+    const { courseId, semesterId, sectionId } = req.body;
+
+    if (!courseId || !semesterId || !sectionId) {
+      return res
+        .status(400)
+        .json({ message: "Course, Semester, and Section are required!" });
+    }
+
+    const students = await Student.find({
+      course: courseId,
+      semester: semesterId,
+      section: sectionId,
+    });
+    const attendanceRecords = await Attendance.find({
+      course: courseId,
+      semester: semesterId,
+      section: sectionId,
+    });
+
+    const totalClasses = attendanceRecords.length;
+    const attendanceReport = students.map((student) => {
+      const presentCount = attendanceRecords.filter((record) =>
+        record.students.some(
+          (s) => s.student.toString() === student._id.toString() && s.present
+        )
+      ).length;
+
+      return {
+        rollNumber: student.rollNumber,
+        name: student.name,
+        totalClasses,
+        presentClasses: presentCount,
+      };
+    });
+
+    res.status(200).json({ totalClasses, students: attendanceReport });
+  } catch (error) {
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
+};
+
+const getFilteredAttendance = async (req, res) => {
+  try {
+    console.log("🚀 Received Query Params:", req.query);
+
+    const { courseId, semesterId, sectionId } = req.query;
+    const query = {};
+
+    if (courseId) query.course = courseId;
+    if (semesterId) query.semester = semesterId;
+    if (sectionId) query.section = sectionId;
+    if (!courseId || !semesterId || !sectionId) {
+      return res.status(400).json({
+        message: "Missing required fields: courseId, semesterId, or sectionId.",
+      });
+    }
+
+    console.log("✅ MongoDB Query Params:", {
+      courseId,
+      semesterId,
+      sectionId,
+    });
+
+    // Fetch attendance records
+    const attendanceRecords = await Attendance.find(query)
+      .populate("course")
+      .populate("semester")
+      .populate("section")
+      .populate("students.student") // Populate student details
+      .sort({ date: -1 });
+
+    if (attendanceRecords.length === 0) {
+      return res.json({ message: "No attendance records found." });
+    }
+
+    // Calculate attendance percentage for each student
+    const studentAttendance = {};
+
+    attendanceRecords.forEach((record) => {
+      record.students.forEach(({ student, present }) => {
+        if (!student || !student._id) return;
+
+        const studentId = student._id.toString();
+
+        if (!studentAttendance[studentId]) {
+          studentAttendance[studentId] = {
+            studentId,
+            studentName: student.name || "Unknown",
+            rollNumber: student.rollNumber || "N/A", // Include roll number
+            totalClasses: 0,
+            presentCount: 0,
+          };
+        }
+
+        studentAttendance[studentId].totalClasses += 1;
+        if (present) {
+          studentAttendance[studentId].presentCount += 1;
+        }
+      });
+    });
+
+    // Convert to array and calculate percentages
+    const studentPercentages = Object.values(studentAttendance).map(
+      (student) => ({
+        studentId: student.studentId,
+        studentName: student.studentName,
+        rollNumber: student.rollNumber, // Include roll number
+        totalClasses: student.totalClasses,
+        presentCount: student.presentCount,
+        percentage:
+          student.totalClasses > 0
+            ? ((student.presentCount / student.totalClasses) * 100).toFixed(2) +
+              "%"
+            : "0%",
+      })
+    );
+
+    res.json(studentPercentages);
+  } catch (error) {
+    console.error("🔥 Error fetching attendance:", error);
+    res
+      .status(500)
+      .json({ message: "Error fetching attendance", error: error.message });
+  }
+};
+export const getStudentAttendance = async (req, res) => {
+  try {
+    const { course, semester, section } = req.query;
+
+    if (!course || !semester || !section) {
+      return res.status(400).json({ message: "Missing required parameters" });
+    }
+
+    // 🟢 Fetch all attendance records for the given course, semester, section
+    const attendanceRecords = await Attendance.find({
+      course,
+      semester,
+      section,
+    });
+
+    if (!attendanceRecords.length) {
+      return res.status(404).json({ message: "No attendance records found" });
+    }
+
+    // 🟢 Count how many times attendance was recorded (Total Sessions)
+    const totalSessions = attendanceRecords.length;
+
+    // 🟢 Create a map to store student attendance counts
+    let studentAttendanceMap = new Map();
+
+    attendanceRecords.forEach((attendance) => {
+      attendance.students.forEach(({ student, present }) => {
+        // ✅ Ensure the student field exists before processing
+        if (!student) return;
+
+        const studentId = student.toString(); // Convert ObjectId to String safely
+
+        if (!studentAttendanceMap.has(studentId)) {
+          studentAttendanceMap.set(studentId, { presentCount: 0 });
+        }
+
+        if (present) {
+          studentAttendanceMap.get(studentId).presentCount += 1;
+        }
+      });
+    });
+
+    // 🟢 Fetch student details
+    const studentIds = Array.from(studentAttendanceMap.keys());
+
+    if (studentIds.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "No students found for this attendance data" });
+    }
+
+    const students = await Student.find({ _id: { $in: studentIds } });
+
+    // 🟢 Prepare response
+    const response = students.map((student) => {
+      const attendanceInfo = studentAttendanceMap.get(student._id.toString());
+      const presentCount = attendanceInfo ? attendanceInfo.presentCount : 0;
+
+      return {
+        rollNumber: student.rollNumber,
+        name: student.name,
+        percentage:
+          totalSessions > 0
+            ? ((presentCount / totalSessions) * 100).toFixed(2)
+            : "0.00",
+      };
+    });
+
+    res.json(response);
+  } catch (error) {
+    console.error("Error fetching attendance:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const getStudentAttendanceSubjectWise = async (req, res) => {
+  try {
+    const { courseId, semesterId, sectionId } = req.query;
+
+    if (!courseId || !semesterId || !sectionId) {
+      return res.status(400).json({ message: "Missing parameters" });
+    }
+
+    const courseObjId = new mongoose.Types.ObjectId(courseId);
+    const semesterObjId = new mongoose.Types.ObjectId(semesterId);
+    const sectionObjId = new mongoose.Types.ObjectId(sectionId);
+
+    const attendanceRecords = await Attendance.find({
+      course: courseObjId,
+      semester: semesterObjId,
+      section: sectionObjId,
+    }).lean();
+
+    if (!attendanceRecords.length) {
+      return res.status(404).json({ message: "No attendance records found." });
+    }
+
+    const attendanceMap = {};
+
+    attendanceRecords.forEach((record) => {
+      const subjectId = record.subject.toString();
+
+      record.students.forEach((studentData) => {
+        const studentId = studentData.student.toString();
+
+        if (!attendanceMap[studentId]) {
+          attendanceMap[studentId] = {};
+        }
+
+        if (!attendanceMap[studentId][subjectId]) {
+          attendanceMap[studentId][subjectId] = { total: 0, attended: 0 };
+        }
+
+        attendanceMap[studentId][subjectId].total += 1;
+        if (studentData.present) {
+          attendanceMap[studentId][subjectId].attended += 1;
+        }
+      });
+    });
+
+    // Get student IDs
+    const studentIds = Object.keys(attendanceMap);
+    console.log("Fetched Student IDs:", studentIds);
+
+    // Fetch student details
+    const students = await Student.find({
+      _id: { $in: studentIds.map((id) => new mongoose.Types.ObjectId(id)) },
+    }).lean();
+    console.log("Fetched Students:", students);
+
+    // Fetch subject details
+    const subjects = await Subject.find().lean();
+
+    const attendanceData = [];
+
+    for (const studentId of studentIds) {
+      const student = students.find((stu) => stu._id.toString() === studentId);
+      console.log(`Processing student ID: ${studentId}, Found:`, student);
+
+      for (const subjectId of Object.keys(attendanceMap[studentId])) {
+        const { total, attended } = attendanceMap[studentId][subjectId];
+        const subject = subjects.find(
+          (sub) => sub._id.toString() === subjectId
+        );
+
+        attendanceData.push({
+          studentId,
+          studentName: student ? student.name : "**Not Found**", // Changed to debug issue
+          rollNumber: student ? student.rollNumber : "**Not Found**",
+          subjectId,
+          subjectName: subject ? subject.name : "Unknown",
+
+          totalClasses: total,
+          attendedClasses: attended,
+          attendancePercentage:
+            total === 0 ? 0 : Math.round((attended / total) * 100),
+        });
+      }
+    }
+
+    console.log("Final Attendance Data:", attendanceData);
+    res.json(attendanceData);
+  } catch (error) {
+    console.error("Error fetching attendance data:", error);
+    res.status(500).json({ message: "Server Error", error: error.message });
+  }
+};
+
+export {
+  createAttendance,
+  getAttendancePercentage,
+  getFilteredAttendanceByName,
+  getFilteredAttendance,
+};
+
+
+
+================================================
+File: authController.js
+================================================
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import { User } from "../models/userSchema.js";
+import sendToken from "../utils/jwtToken.js";
+import sendEmail from "../utils/sendEmail.js";
+import crypto from "crypto";
+
+export const register = async (req, res, next) => {
+  try {
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    // Check if the user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: "User already exists" });
+    }
+
+    // Ensure only the first registered user is an admin
+    const isFirstUser = (await User.countDocuments()) === 0;
+    const role = isFirstUser ? "admin" : "teacher"; // First user = admin, others = student
+
+    const user = await User.create({ name, email, password, role });
+    sendToken(user, 201, res);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// export const login = async (req, res, next) => {
+//   try {
+//     const { email, password } = req.body;
+
+//     if (!email || !password) {
+//       return next("Pleasee enter a valid Email and password");
+//     }
+
+//     // Check if user exists
+//     const user = await User.findOne({ email }).select("+password");
+
+//     if (!user) {
+//       return next("email invalid");
+//     }
+
+//     const ispasswordMatched = await user.comparePassword(password);
+
+//     if (!ispasswordMatched) {
+//       return next("Inavlid password");
+//     }
+//     sendToken(user, 200, res);
+//   } catch (error) {
+//     res.status(500).json({ message: error.message });
+//   }
+// };
+
+export const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // ✅ 1. Validate Email and Password
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter a valid Email and Password",
+      });
+    }
+
+    // ✅ 2. Check if user exists
+    const user = await User.findOne({ email }).select("+password");
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or user not found",
+      });
+    }
+
+    // ✅ 3. Compare Password
+    const isPasswordMatched = await user.comparePassword(password);
+
+    if (!isPasswordMatched) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid password",
+      });
+    }
+
+    // ✅ 4. Send Token + User Response
+    sendToken(user, 200, res);
+  } catch (error) {
+    console.error("Login Error:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
+
+export const logout = async (req, res, next) => {
+  try {
+    res.cookie("token", null, {
+      expires: new Date(Date.now()),
+      httpOnly: true,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Logged Out",
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// export const forgetPassword = async (req, res, next) => {
+//   const user = await User.findOne({ email: req.body.email });
+
+//   if (!user) {
+//     return next("User not found", 404);
+//   }
+//   console.log("User found:", user);
+
+//   const resetToken = user.getResetPasswordToken();
+//   console.log("Generated Reset Token:", resetToken);
+
+//   await user.save({ validateBeforeSave: false });
+
+//   const resetPasswordUri = `${req.protocol}://${req.get(
+//     "host"
+//   )}/auth/password/reset/${resetToken}`;
+
+//   const message = `Your password reset token is :- \n\n\ ${resetPasswordUri} \n\n If you have not requested this email then, please ignore it.`;
+//   try {
+//     await sendEmail({
+//       email: user.email,
+//       subject: `LNMCBM`,
+//       message,
+//     });
+
+//     res.status(200).json({
+//       success: true,
+//       message: `Email sent to ${user.email} successfully`,
+//     });
+//   } catch (error) {
+//     user.resetPasswordToken = undefined;
+//     user.resetPasswordExpire = undefined;
+//     await user.save({ validateBeforeSave: false });
+
+//     return next(error.message, 500);
+//   }
+// };
+
+export const forgetPassword = async (req, res, next) => {
+  const user = await User.findOne({ email: req.body.email });
+
+  if (!user) {
+    return next("User not found", 404);
+  }
+
+  // Generate reset token (this function returns raw token)
+  const resetToken = user.getResetPasswordToken();
+
+  // Save the user with the hashed token
+  await user.save({ validateBeforeSave: false });
+
+  // Send the **raw token** in the email
+  const resetPasswordUri = `${req.protocol}://${req.get(
+    "host"
+  )}/auth/password/reset/${resetToken}`;
+
+  const message = `Your password reset token is: \n\n${resetPasswordUri} \n\nIf you did not request this, please ignore it.`;
+
+  try {
+    await sendEmail({
+      email: user.email,
+      subject: "LNMCBM Password Reset",
+      message,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Email sent to ${user.email} successfully`,
+    });
+  } catch (error) {
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+    await user.save({ validateBeforeSave: false });
+
+    return next(error.message, 500);
+  }
+};
+
+// export const resetPassword = async (req, res, next) => {
+//   const resetPasswordToken = crypto
+//     .createHash("sha256")
+//     .update(req.params.token)
+//     .digest("hex");
+
+//   const user = await User.findOne({
+//     resetPasswordToken,
+//     resetPasswordExpire: { $gt: Date.now() },
+//   });
+
+//   if (!user) {
+//     return next("Reset Password Token is invalid or has been expired", 400);
+//   }
+
+//   if (req.body.password !== req.body.confirmPassword) {
+//     return next("Password does not password", 400);
+//   }
+
+//   user.password = req.body.password;
+//   user.resetPasswordToken = undefined;
+//   user.resetPasswordExpire = undefined;
+
+//   await user.save();
+
+//   sendToken(user, 200, res);
+// };
+
+export const resetPassword = async (req, res, next) => {
+  console.log("Received Token from URL:", req.params.token); // Debugging
+
+  // Hash the received token from URL
+  const resetPasswordToken = crypto
+    .createHash("sha256")
+    .update(req.params.token)
+    .digest("hex");
+
+  console.log("Hashed Token to Match in DB:", resetPasswordToken); // Debugging
+
+  // Find user with matching hashed token
+  const user = await User.findOne({
+    resetPasswordToken: resetPasswordToken,
+    resetPasswordExpire: { $gt: Date.now() },
+  });
+
+  if (!user) {
+    return next("Reset Password Token is invalid or has expired", 400);
+  }
+
+  if (req.body.password !== req.body.confirmPassword) {
+    return next("Passwords do not match", 400);
+  }
+
+  // Save new password and remove token fields
+  user.password = req.body.password;
+  user.resetPasswordToken = undefined;
+  user.resetPasswordExpire = undefined;
+
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: "Password reset successful",
+  });
+};
+
+
+
+================================================
+File: courseController.js
+================================================
+import { Course } from "../models/courseSchema.js";
+
+const createCourse = async (req, res) => {
+  try {
+    const { name } = req.body;
+    const courseExist = await Course.findOne({ name });
+    if (courseExist) {
+      return res.status(409).json({
+        message: "Course already exists",
+      });
+    }
+    const newCourse = await new Course({ name: name.toUpperCase() }).save();
+
+    res.status(201).json(newCourse);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error creating course", error: err });
+  }
+};
+
+const getCourses = async (req, res) => {
+  try {
+    const courses = await Course.find();
+    res.status(200).json(courses);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error getting courses", error: err });
+  }
+};
+
+const getCourseById = async (req, res) => {
+  try {
+    const course = await Course.findById(req.params.id);
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+    res.status(200).json(course);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error getting course", error: err });
+  }
+};
+
+const updateCourse = async (req, res) => {
+  try {
+    const course = await Course.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+    });
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+    res.status(200).json(course);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error updating course", error: err });
+  }
+};
+
+const deleteCourse = async (req, res) => {
+  try {
+    const course = await Course.findByIdAndDelete(req.params.id);
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+    res.status(200).json({ message: "Course deleted successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error deleting course", error: err });
+  }
+};
+
+export { createCourse, getCourses, getCourseById, updateCourse, deleteCourse };
+
+
+
+================================================
+File: durationController.js
+================================================
+import { Duration } from "../models/durationSchema.js";
+
+const createDuration = async (req, res) => {
+  try {
+    const { name } = req.body;
+    const durationExist = await Duration.findOne({ name });
+    if (durationExist) {
+      return res.status(409).json({
+        message: "duration already exists",
+      });
+    }
+    const newDuration = await new Duration({ name }).save();
+    res.status(201).json(newDuration);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error creating course", error: err });
+  }
+};
+
+const getDuration = async (req, res) => {
+  try {
+    const durations = await Duration.find();
+
+    // Custom sort function to handle time ranges
+    const sortedDurations = durations.sort((a, b) => {
+      // Extract start time from the range (before the hyphen)
+      const startTimeA = parseFloat(a.name.split("-")[0]);
+      const startTimeB = parseFloat(b.name.split("-")[0]);
+
+      return startTimeA - startTimeB;
+    });
+
+    res.status(200).json(sortedDurations);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      message: "Error getting courses",
+      error: err,
+    });
+  }
+};
+
+export { createDuration, getDuration };
+
+
+
+================================================
+File: sectionController.js
+================================================
+import { Section } from "../models/sectionSchema.js";
+
+const createSection = async (req, res) => {
+  try {
+    const { name } = req.body;
+    const sectionExist = await Section.findOne({ name });
+    if (sectionExist) {
+      return res.status(409).json({
+        message: "Section already exists",
+      });
+    }
+    const newSection = await new Section({ name }).save();
+
+    res.status(201).json(newSection);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error creating section", error: err });
+  }
+};
+
+const getSections = async (req, res) => {
+  try {
+    const sections = await Section.find()
+      .sort({ name: 1 }) // Sort by the "name" field
+      .collation({ locale: "en", strength: 2 }); // Case-insensitive sorting
+
+    res.status(200).json(sections);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      message: "Error getting sections",
+      error: err,
+    });
+  }
+};
+const getSection = async (req, res) => {
+  try {
+    const { courseId } = req.query;
+    const sections = await Section.find(courseId ? { course: courseId } : {})
+      .sort({ name: 1 })
+      .collation({ locale: "en", strength: 2 });
+    res.status(200).json(sections);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error getting sections", error: err });
+  }
+};
+
+const getSectionById = async (req, res) => {
+  try {
+    const section = await Section.findById(req.params.id);
+    if (!section) {
+      return res.status(404).json({ message: "Section not found" });
+    }
+    res.status(200).json(section);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error getting section", error: err });
+  }
+};
+
+const updateSection = async (req, res) => {
+  try {
+    const section = await Section.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+    });
+    if (!section) {
+      return res.status(404).json({ message: "Section not found" });
+    }
+    res.status(200).json(section);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error updating section", error: err });
+  }
+};
+
+const deleteSection = async (req, res) => {
+  try {
+    const section = await Section.findByIdAndDelete(req.params.id);
+    if (!section) {
+      return res.status(404).json({ message: "Section not found" });
+    }
+    res.status(200).json({ message: "Section deleted successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error deleting section", error: err });
+  }
+};
+
+export {
+  createSection,
+  getSections,
+  getSection,
+  getSectionById,
+  updateSection,
+  deleteSection,
+};
+
+
+
+================================================
+File: semesterController.js
+================================================
+import { Semester } from "../models/semesterSchema.js";
+
+const createSemester = async (req, res) => {
+  try {
+    const { name } = req.body;
+    const semesterExist = await Semester.findOne({ name });
+    if (semesterExist) {
+      return res.status(409).json({
+        message: "Semester already exists",
+      });
+    }
+    const newSemester = await new Semester({ name }).save();
+
+    res.status(201).json(newSemester);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error creating course", error: err });
+  }
+};
+
+const getSemester = async (req, res) => {
+  try {
+    const semester = await Semester.find().sort({ name: 1 });
+    res.status(200).json(semester);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error getting courses", error: err });
+  }
+};
+
+const getSemesterById = async (req, res) => {
+  try {
+    const semester = await Semester.findById(req.params.id);
+    if (!semester) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+    res.status(200).json(semester);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error getting course", error: err });
+  }
+};
+
+const updateSemester = async (req, res) => {
+  try {
+    const semester = await Semester.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+    });
+    if (!semester) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+    res.status(200).json(semester);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error updating course", error: err });
+  }
+};
+
+const deleteSemester = async (req, res) => {
+  try {
+    const semester = await Semester.findByIdAndDelete(req.params.id);
+    if (!semester) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+    res.status(200).json({ message: "Course deleted successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error deleting course", error: err });
+  }
+};
+
+export {
+  createSemester,
+  getSemester,
+  getSemesterById,
+  updateSemester,
+  deleteSemester,
+};
+
+
+
+================================================
+File: studentController.js
+================================================
+import { Student } from "../models/studentSchema.js";
+import { Semester } from "../models/semesterSchema.js";
+const createStudent = async (req, res) => {
+  try {
+    // Extract student data from the request body
+    const { rollNumber, name, course, section, semester } = req.body;
+
+    const rollNumberExist = await Student.findOne({ name });
+    if (rollNumberExist) {
+      return res.status(409).json({
+        message: "Student  already exists",
+      });
+    }
+
+    // Create a new student instance
+    const newStudent = new Student({
+      rollNumber,
+      name: name.toUpperCase(),
+      course,
+      section,
+      semester,
+    });
+
+    // Save the student to the database
+    const savedStudent = await newStudent.save();
+
+    // Respond with the created student
+    res.status(201).json({
+      message: "Student created successfully",
+      student: savedStudent,
+    });
+  } catch (error) {
+    console.error(error); // Log the error for debugging
+    res.status(500).json({
+      message: "Error creating student",
+      error: error.message,
+    });
+  }
+};
+const getStudents = async (req, res) => {
+  try {
+    const Students = await Student.find().sort({ name: 1 });
+
+    res.status(200).json(Students);
+  } catch (error) {
+    console.error(err);
+    res.status(500).json({ message: "Error geting student", error: err });
+  }
+};
+const getFilterStudent = async (req, res) => {
+  try {
+    const { courseId, semesterId, sectionId } = req.query;
+    const query = {};
+    if (courseId) query.course = courseId;
+    if (semesterId) query.semester = semesterId;
+    if (sectionId) query.section = sectionId;
+
+    const students = await Student.find(query)
+      .populate("course")
+      .populate("semester")
+      .populate("section")
+      .sort({ rollNumber: 1 });
+    res.json(students);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const updateStudent = async (req, res) => {
+  try {
+    const { rollNumber, name, course, section, semester } = req.body;
+
+    // Ensure required fields are provided
+    if (!course || !semester) {
+      return res
+        .status(400)
+        .json({ message: "Course and Semester are required." });
+    }
+
+    const updatedStudent = await Student.findByIdAndUpdate(
+      req.params.id,
+      { rollNumber, name, course, section, semester },
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+
+    if (!updatedStudent) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    res.status(200).json(updatedStudent);
+  } catch (error) {
+    console.error("Update Student Error:", error);
+    res
+      .status(500)
+      .json({ message: "Error updating student", error: error.message });
+  }
+};
+
+const deleteStudent = async (req, res) => {
+  try {
+    // Find student first
+    const student = await Student.findById(req.params.id);
+
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    // Delete the student
+    await Student.findByIdAndDelete(req.params.id);
+
+    res.status(200).json({ message: "Student deleted successfully" });
+  } catch (error) {
+    console.error(error);
+    res
+      .status(500)
+      .json({ message: "Error deleting student", error: error.message });
+  }
+};
+
+const getStudentOnSelection = async (req, res) => {
+  try {
+    const { course, semester, section } = req.query;
+
+    const students = await Student.find({ course, semester, section });
+
+    res.json(students);
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error });
+  }
+};
+
+const promoteAllStudents = async (req, res) => {
+  try {
+    const { currentSemesterId } = req.body;
+
+    // Step 1: Find all students in the given semester
+    const students = await Student.find({ semester: currentSemesterId });
+
+    if (students.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "No students found in this semester." });
+    }
+
+    // Step 2: Get the next semester for the same course
+    const currentSemester = await Semester.findById(currentSemesterId);
+    const nextSemester = await Semester.findOne({
+      course: currentSemester.course,
+      semesterNumber: currentSemester.semesterNumber + 1,
+    });
+
+    if (!nextSemester) {
+      return res.status(400).json({
+        message:
+          "No next semester found. Students may have completed the course.",
+      });
+    }
+
+    // Step 3: Filter students who are not yet promoted
+    const studentsToPromote = [];
+    for (let student of students) {
+      const existingStudent = await Student.findOne({
+        rollNumber: student.rollNumber,
+        course: student.course,
+        semester: nextSemester._id,
+      });
+
+      if (!existingStudent) {
+        studentsToPromote.push(student);
+      }
+    }
+
+    if (studentsToPromote.length === 0) {
+      return res.status(400).json({
+        message: "All students are already promoted to the next semester.",
+      });
+    }
+
+    // Step 4: Create new records for promoted students
+    const promotedStudents = studentsToPromote.map((student) => ({
+      rollNumber: student.rollNumber,
+      name: student.name,
+      course: student.course,
+      semester: nextSemester._id,
+    }));
+
+    await Student.insertMany(promotedStudents);
+
+    res.status(201).json({
+      message: "All students promoted successfully",
+      promotedCount: promotedStudents.length,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const upgradeStudentSemester = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { newSemesterId } = req.body;
+
+    // Validate input
+    if (!studentId) {
+      return res.status(400).json({
+        success: false,
+        message: "Student ID is required",
+      });
+    }
+
+    // Fetch the student
+    const student = await Student.findById(studentId)
+      .populate("course", "name")
+      .populate("semester", "name");
+
+    // Log the student after it's fetched
+    console.log("Fetched Student:", student);
+
+    // Check if the student exists
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Student not found",
+        studentId,
+      });
+    }
+
+    // 🛑 Defensive check if course and semester exist
+    if (!student.course || !student.semester) {
+      return res.status(400).json({
+        success: false,
+        message: "Course and Semester are required.",
+      });
+    }
+
+    // 📚 Get the current semester name (as a number)
+    const currentSemesterNumber = student.semester.name;
+
+    // 🔎 Find the next semester by incrementing `name` by 1
+    const nextSemester = await Semester.findOne({
+      name: currentSemesterNumber + 1,
+    });
+
+    // 🛑 If no next semester found, student is already in the final semester
+    if (!nextSemester) {
+      return res.status(400).json({
+        success: false,
+        message: "Student is already in the final semester",
+        currentSemester: {
+          _id: student.semester._id,
+          name: student.semester.name,
+        },
+      });
+    }
+
+    // 🔄 Upgrade to the next semester
+    const updatedStudent = await Student.findByIdAndUpdate(
+      studentId,
+      { semester: nextSemester._id },
+      { new: true, runValidators: true }
+    )
+      .populate("course", "name")
+      .populate("semester", "name");
+
+    res.status(200).json({
+      success: true,
+      message: "Semester upgraded successfully",
+      student: updatedStudent,
+      previousSemester: {
+        _id: student.semester._id,
+        name: student.semester.name,
+      },
+      nextSemester: {
+        _id: nextSemester._id,
+        name: nextSemester.name,
+      },
+    });
+  } catch (error) {
+    console.error("Error upgrading semester:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+
+// ✅ Get Subjects Based on Course
+export const getSubjectsByCourse = async (req, res) => {
+  try {
+    const { courseId } = req.params;
+
+    // ⚡️ Validate Course ID
+    const courseExists = await Course.findById(courseId);
+    if (!courseExists) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+
+    // ✅ Get All Subjects for the Course
+    const subjects = await Subject.find({ course: courseId });
+
+    res.status(200).json({
+      success: true,
+      count: subjects.length,
+      data: subjects,
+    });
+  } catch (error) {
+    console.error("Error fetching subjects:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching subjects",
+      error: error.message,
+    });
+  }
+};
+
+export {
+  createStudent,
+  getStudents,
+  getFilterStudent,
+  updateStudent,
+  deleteStudent,
+  getStudentOnSelection,
+  promoteAllStudents,
+};
+
+
+
+================================================
+File: subjectController.js
+================================================
+import { Subject } from "../models/subjectSchema.js";
+
+export const createSubject = async (req, res) => {
+  try {
+    const { name, course, semester } = req.body;
+
+    // Validate required fields
+    if (!name || !course || !semester) {
+      return res.status(400).json({
+        success: false,
+        message: "Name, course, and semester are required",
+      });
+    }
+
+    // Check if subject with the same name, course, and semester already exists
+    const existingSubject = await Subject.findOne({ name, course, semester });
+    if (existingSubject) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Subject with the same name, course, and semester already exists",
+      });
+    }
+
+    // Create new subject
+    const subject = await Subject.create({
+      name,
+      course,
+      semester,
+    });
+
+    // Return the newly created subject
+    res.status(201).json({
+      success: true,
+      data: subject,
+    });
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
+  }
+};
+
+export const getSubjectsByCourseAndSemester = async (req, res) => {
+  try {
+    const { courseId, semesterId } = req.query;
+
+    // Validate if both course and semester are provided
+    if (!courseId || !semesterId) {
+      return res.status(400).json({
+        success: false,
+        message: "Both courseId and semesterId are required",
+      });
+    }
+
+    // Fetch subjects matching the course and semester
+    const subjects = await Subject.find({
+      course: courseId,
+      semester: semesterId,
+    }).populate("course semester");
+
+    // Check if subjects exist
+    if (subjects.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No subjects found for the selected course and semester",
+      });
+    }
+
+    // Return subjects if found
+    res.status(200).json({
+      success: true,
+      count: subjects.length,
+      data: subjects,
+    });
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
+  }
+};
+
+export const getAllSubjects = async (req, res) => {
+  try {
+    // Fetch all subjects and populate course and semester details
+    const subjects = await Subject.find().populate("course semester");
+
+    // Check if subjects exist
+    if (!subjects || subjects.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No subjects found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      count: subjects.length,
+      data: subjects,
+    });
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
+  }
+};
+
+export const updateSubject = async (req, res) => {
+  try {
+    const { name, course, semester } = req.body;
+    const { id } = req.params;
+
+    // Validate required fields
+    if (!name || !course || !semester) {
+      return res.status(400).json({
+        success: false,
+        message: "Name, course, and semester are required",
+      });
+    }
+
+    // Check if subject exists
+    const subject = await Subject.findById(id);
+    if (!subject) {
+      return res.status(404).json({
+        success: false,
+        message: "Subject not found",
+      });
+    }
+
+    // Update subject details
+    subject.name = name;
+    subject.course = course;
+    subject.semester = semester;
+
+    const updatedSubject = await subject.save();
+
+    res.status(200).json({
+      success: true,
+      data: updatedSubject,
+    });
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
+  }
+};
+
+export const deleteSubject = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if subject exists
+    const subject = await Subject.findById(id);
+    if (!subject) {
+      return res.status(404).json({
+        success: false,
+        message: "Subject not found",
+      });
+    }
+
+    // Delete the subject
+    await subject.deleteOne();
+
+    res.status(200).json({
+      success: true,
+      message: "Subject deleted successfully",
+    });
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
+  }
+};
+
+
