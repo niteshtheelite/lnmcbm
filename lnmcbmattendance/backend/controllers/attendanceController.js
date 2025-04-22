@@ -456,9 +456,102 @@ export const getStudentAttendance = async (req, res) => {
   }
 };
 
+// export const getStudentAttendanceSubjectWise = async (req, res) => {
+//   try {
+//     const { courseId, semesterId, sectionId } = req.query;
+
+//     if (!courseId || !semesterId || !sectionId) {
+//       return res.status(400).json({ message: "Missing parameters" });
+//     }
+
+//     const courseObjId = new mongoose.Types.ObjectId(courseId);
+//     const semesterObjId = new mongoose.Types.ObjectId(semesterId);
+//     const sectionObjId = new mongoose.Types.ObjectId(sectionId);
+
+//     const attendanceRecords = await Attendance.find({
+//       course: courseObjId,
+//       semester: semesterObjId,
+//       section: sectionObjId,
+//     }).lean();
+
+//     if (!attendanceRecords.length) {
+//       return res.status(404).json({ message: "No attendance records found." });
+//     }
+
+//     const attendanceMap = {};
+
+//     attendanceRecords.forEach((record) => {
+//       const subjectId = record.subject.toString();
+
+//       record.students.forEach((studentData) => {
+//         const studentId = studentData.student.toString();
+
+//         if (!attendanceMap[studentId]) {
+//           attendanceMap[studentId] = {};
+//         }
+
+//         if (!attendanceMap[studentId][subjectId]) {
+//           attendanceMap[studentId][subjectId] = { total: 0, attended: 0 };
+//         }
+
+//         attendanceMap[studentId][subjectId].total += 1;
+//         if (studentData.present) {
+//           attendanceMap[studentId][subjectId].attended += 1;
+//         }
+//       });
+//     });
+
+//     // Get student IDs
+//     const studentIds = Object.keys(attendanceMap);
+//     console.log("Fetched Student IDs:", studentIds);
+
+//     // Fetch student details
+//     const students = await Student.find({
+//       _id: { $in: studentIds.map((id) => new mongoose.Types.ObjectId(id)) },
+//     }).lean();
+//     console.log("Fetched Students:", students);
+
+//     // Fetch subject details
+//     const subjects = await Subject.find().lean();
+
+//     const attendanceData = [];
+
+//     for (const studentId of studentIds) {
+//       const student = students.find((stu) => stu._id.toString() === studentId);
+//       console.log(`Processing student ID: ${studentId}, Found:`, student);
+
+//       for (const subjectId of Object.keys(attendanceMap[studentId])) {
+//         const { total, attended } = attendanceMap[studentId][subjectId];
+//         const subject = subjects.find(
+//           (sub) => sub._id.toString() === subjectId
+//         );
+
+//         attendanceData.push({
+//           studentId,
+//           studentName: student ? student.name : "**Not Found**", // Changed to debug issue
+//           rollNumber: student ? student.rollNumber : "**Not Found**",
+//           subjectId,
+//           subjectName: subject ? subject.name : "Unknown",
+
+//           totalClasses: total,
+//           attendedClasses: attended,
+//           attendancePercentage:
+//             total === 0 ? 0 : Math.round((attended / total) * 100),
+//         });
+//       }
+//     }
+
+//     console.log("Final Attendance Data:", attendanceData);
+//     res.json(attendanceData);
+//   } catch (error) {
+//     console.error("Error fetching attendance data:", error);
+//     res.status(500).json({ message: "Server Error", error: error.message });
+//   }
+// };
+
 export const getStudentAttendanceSubjectWise = async (req, res) => {
   try {
-    const { courseId, semesterId, sectionId } = req.query;
+    const { courseId, semesterId, sectionId, minPercentage } = req.query;
 
     if (!courseId || !semesterId || !sectionId) {
       return res.status(400).json({ message: "Missing parameters" });
@@ -467,6 +560,7 @@ export const getStudentAttendanceSubjectWise = async (req, res) => {
     const courseObjId = new mongoose.Types.ObjectId(courseId);
     const semesterObjId = new mongoose.Types.ObjectId(semesterId);
     const sectionObjId = new mongoose.Types.ObjectId(sectionId);
+    const minPercentValue = parseFloat(minPercentage) || 0;
 
     const attendanceRecords = await Attendance.find({
       course: courseObjId,
@@ -501,24 +595,22 @@ export const getStudentAttendanceSubjectWise = async (req, res) => {
       });
     });
 
-    // Get student IDs
     const studentIds = Object.keys(attendanceMap);
-    console.log("Fetched Student IDs:", studentIds);
 
-    // Fetch student details
     const students = await Student.find({
       _id: { $in: studentIds.map((id) => new mongoose.Types.ObjectId(id)) },
     }).lean();
-    console.log("Fetched Students:", students);
 
-    // Fetch subject details
     const subjects = await Subject.find().lean();
 
     const attendanceData = [];
 
     for (const studentId of studentIds) {
       const student = students.find((stu) => stu._id.toString() === studentId);
-      console.log(`Processing student ID: ${studentId}, Found:`, student);
+
+      let totalClasses = 0;
+      let attendedClasses = 0;
+      const subjectEntries = [];
 
       for (const subjectId of Object.keys(attendanceMap[studentId])) {
         const { total, attended } = attendanceMap[studentId][subjectId];
@@ -526,22 +618,35 @@ export const getStudentAttendanceSubjectWise = async (req, res) => {
           (sub) => sub._id.toString() === subjectId
         );
 
-        attendanceData.push({
-          studentId,
-          studentName: student ? student.name : "**Not Found**", // Changed to debug issue
-          rollNumber: student ? student.rollNumber : "**Not Found**",
+        subjectEntries.push({
           subjectId,
           subjectName: subject ? subject.name : "Unknown",
-
           totalClasses: total,
           attendedClasses: attended,
           attendancePercentage:
             total === 0 ? 0 : Math.round((attended / total) * 100),
         });
+
+        totalClasses += total;
+        attendedClasses += attended;
+      }
+
+      const averagePercentage =
+        totalClasses === 0
+          ? 0
+          : Math.round((attendedClasses / totalClasses) * 100);
+
+      if (averagePercentage >= minPercentValue) {
+        attendanceData.push({
+          studentId,
+          studentName: student ? student.name : "**Not Found**",
+          rollNumber: student ? student.rollNumber : "**Not Found**",
+          averagePercentage,
+          subjects: subjectEntries,
+        });
       }
     }
 
-    console.log("Final Attendance Data:", attendanceData);
     res.json(attendanceData);
   } catch (error) {
     console.error("Error fetching attendance data:", error);

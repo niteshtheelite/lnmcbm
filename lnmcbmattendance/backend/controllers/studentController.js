@@ -1,18 +1,93 @@
 import { Student } from "../models/studentSchema.js";
 import { Semester } from "../models/semesterSchema.js";
+import { Course } from "../models/courseSchema.js";
+// const createStudent = async (req, res) => {
+//   try {
+//     // Extract student data from the request body
+//     const { rollNumber, name, course, section, semester } = req.body;
+
+//     const rollNumberExist = await Student.findOne({ name });
+//     if (rollNumberExist) {
+//       return res.status(409).json({
+//         message: "Student  already exists",
+//       });
+//     }
+
+//     // Create a new student instance
+//     const newStudent = new Student({
+//       rollNumber,
+//       name: name.toUpperCase(),
+//       course,
+//       section,
+//       semester,
+//     });
+
+//     // Save the student to the database
+//     const savedStudent = await newStudent.save();
+
+//     // Respond with the created student
+//     res.status(201).json({
+//       message: "Student created successfully",
+//       student: savedStudent,
+//     });
+//   } catch (error) {
+//     console.error(error); // Log the error for debugging
+//     res.status(500).json({
+//       message: "Error creating student",
+//       error: error.message,
+//     });
+//   }
+// };
+
 const createStudent = async (req, res) => {
   try {
-    // Extract student data from the request body
     const { rollNumber, name, course, section, semester } = req.body;
 
-    const rollNumberExist = await Student.findOne({ name });
-    if (rollNumberExist) {
-      return res.status(409).json({
-        message: "Student  already exists",
+    // Extract the third digit from the left
+    const rollStr = rollNumber.toString();
+    if (rollStr.length < 3) {
+      return res.status(400).json({ message: "Invalid roll number format" });
+    }
+
+    const thirdDigit = rollStr[2]; // 3rd digit from left (index starts at 0)
+
+    // Map digit to course name
+    const courseMap = {
+      1: "MBA",
+      3: "MCA",
+      4: "BCA",
+      5: "BBA",
+    };
+
+    const expectedCourseName = courseMap[thirdDigit];
+
+    if (!expectedCourseName) {
+      return res.status(400).json({
+        message: `Invalid course code in roll number: ${thirdDigit}`,
       });
     }
 
-    // Create a new student instance
+    // Fetch course by ID to get its name
+    const courseDoc = await Course.findById(course);
+    if (!courseDoc) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+
+    if (courseDoc.name.toUpperCase() !== expectedCourseName) {
+      return res.status(400).json({
+        message: `Roll number indicates course ${expectedCourseName}, but selected course is ${courseDoc.name}`,
+      });
+    }
+
+    // Check if student with same rollNumber and course already exists
+    const existingStudent = await Student.findOne({ rollNumber, course });
+    if (existingStudent) {
+      return res.status(409).json({
+        message: "Student with this roll number and course already exists",
+      });
+    }
+
+    // Create and save the student
     const newStudent = new Student({
       rollNumber,
       name: name.toUpperCase(),
@@ -21,22 +96,21 @@ const createStudent = async (req, res) => {
       semester,
     });
 
-    // Save the student to the database
     const savedStudent = await newStudent.save();
 
-    // Respond with the created student
     res.status(201).json({
       message: "Student created successfully",
       student: savedStudent,
     });
   } catch (error) {
-    console.error(error); // Log the error for debugging
+    console.error(error);
     res.status(500).json({
       message: "Error creating student",
       error: error.message,
     });
   }
 };
+
 const getStudents = async (req, res) => {
   try {
     const Students = await Student.find().sort({ name: 1 });
